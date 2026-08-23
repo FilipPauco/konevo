@@ -81,7 +81,7 @@ defmodule Konevo.MixProject do
       {:excoveralls, "~> 0.18", only: :test},
       {:ex_machina, "~> 2.8.0", only: :test},
       {:mail, "~> 0.5.2"},
-      {:langchain, "~> 0.9.0"},
+      {:langchain, "~> 0.11.0"},
       {:dotenvy, "~> 1.0"}
     ]
   end
