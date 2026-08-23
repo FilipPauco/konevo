@@ -1,0 +1,13 @@
+.env
+.vscode/mcp.json
+.git
+.github
+.agents
+.codex
+_build
+deps
+cover
+docs/private
+priv/uploads
+node_modules
+assets/node_modules

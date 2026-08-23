@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <% seo_description = assigns[:seo_description] || Seo.default_description() %>
+    <% seo_robots = assigns[:seo_robots] || "noindex, nofollow" %>
+    <% seo_url = assigns[:seo_url] %>
+    <% seo_image_url = assigns[:seo_image_url] || Seo.social_image_url() %>
+    <% seo_json_ld = assigns[:seo_json_ld] %>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="csrf-token" content={get_csrf_token()} />
+    <meta name="description" content={seo_description} />
+    <meta name="robots" content={seo_robots} />
+    <link
+      rel="icon"
+      type="image/png"
+      href={~p"/images/konevo-favicon-64.png?v=1"}
+      sizes="64x64"
+    />
+    <.live_title default="Konevo" phx-no-format>{assigns[:page_title]}</.live_title>
+    <%= if seo_url do %>
+      <link rel="canonical" href={seo_url} />
+      <meta property="og:type" content="website" />
+      <meta property="og:site_name" content="Konevo" />
+      <meta property="og:title" content={assigns[:page_title] || "Konevo"} />
+      <meta property="og:description" content={seo_description} />
+      <meta property="og:url" content={seo_url} />
+      <meta property="og:image" content={seo_image_url} />
+      <meta name="twitter:card" content="summary_large_image" />
+      <meta name="twitter:title" content={assigns[:page_title] || "Konevo"} />
+      <meta name="twitter:description" content={seo_description} />
+      <meta name="twitter:image" content={seo_image_url} />
+    <% end %>
+    <%= if seo_json_ld do %>
+      <script type="application/ld+json">
+        {raw(seo_json_ld)}
+      </script>
+    <% end %>
+    <%!-- Roboto --%>
+    <link
+      href="https://fonts.googleapis.com/css2?family=Roboto:ital,wght@0,100;0,300;0,400;0,500;0,700;0,900;1,100;1,300;1,400;1,500;1,700;1,900&display=swap"
+      rel="stylesheet"
+    />
+    <%!-- Claude: Geist --%>
+    <link
+      href="https://fonts.googleapis.com/css2?family=Geist:wght@100..900&display=swap"
+      rel="stylesheet"
+    />
+    <%!-- Gourmet: Rubik --%>
+    <link
+      href="https://fonts.googleapis.com/css2?family=Rubik:ital,wght@0,300;0,400;0,500;0,600;0,700;1,300;1,400;1,500;1,600;1,700&display=swap"
+      rel="stylesheet"
+    />
+    <link phx-track-static rel="stylesheet" href={~p"/assets/css/app.css"} />
+    <script defer phx-track-static type="text/javascript" src={~p"/assets/js/app.js"}>
+    </script>
+    <script>
+      (() => {
+        const setTheme = (theme) => {
+          const selectedTheme = theme === "vscode" ? "vscode" : "corporate";
+          localStorage.setItem("phx:theme", selectedTheme);
+          document.documentElement.setAttribute("data-theme", selectedTheme);
+        };
+        if (!document.documentElement.hasAttribute("data-theme")) {
+          setTheme(localStorage.getItem("phx:theme") || "corporate");
+        }
+        window.addEventListener("storage", (e) => e.key === "phx:theme" && setTheme(e.newValue || "corporate"));
+        
+        window.addEventListener("phx:set-theme", (e) => setTheme(e.target.dataset.phxTheme));
+
+        if (localStorage.getItem("sidebar:collapsed") === "1") {
+          document.documentElement.setAttribute("data-sidebar-collapsed", "");
+        }
+      })();
+    </script>
+  </head>
+  <body>
+    {@inner_content}
+  </body>
+</html>

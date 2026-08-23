@@ -1,0 +1,1914 @@
+/* See the Tailwind configuration guide for advanced usage
+   https://tailwindcss.com/docs/configuration */
+
+@import "tailwindcss" source(none);
+@import "apexcharts/dist/apexcharts.css";
+@import "flyonui/src/vendor/apexcharts.css";
+@import "flyonui/src/vendor/flatpickr.css";
+@import "flatpickr/dist/flatpickr.css";
+@import "flatpickr/dist/plugins/monthSelect/style.css";
+@import "fullcalendar/skeleton.css";
+@import "fullcalendar/themes/monarch/theme.css";
+@import "fullcalendar/themes/monarch/palettes/blue.css";
+@import "../node_modules/highlight.js/styles/github-dark.css";
+@plugin "flyonui" {
+  themes: corporate --default, vscode;
+}
+@import "../node_modules/flyonui/variants.css";
+@source "../css";
+@source "../js";
+@source "../../lib/konevo_web";
+@source "../node_modules/flyonui/dist/index.js";
+@source "../../deps/live_select/lib/live_select/component.*ex";
+
+@plugin "@iconify/tailwind4";
+
+/* Shared form hierarchy: labels lead, values stay quieter and compact. */
+form .label {
+  font-size: 0.875rem;
+  font-weight: 600;
+  line-height: 1.25rem;
+}
+
+form :where(.input, .select, .textarea) {
+  font-size: 0.875rem;
+  font-weight: 400;
+  line-height: 1.25rem;
+}
+
+form select.select option {
+  background-color: var(--color-base-100);
+  color: var(--color-base-content);
+}
+
+form select.select option:checked,
+form select.select option:hover,
+form select.select option:focus {
+  background: linear-gradient(
+    color-mix(in oklch, var(--color-primary) 16%, var(--color-base-100)),
+    color-mix(in oklch, var(--color-primary) 16%, var(--color-base-100))
+  );
+  color: var(--color-base-content);
+}
+
+form .range[data-range-fill] {
+  background:
+    linear-gradient(var(--range-color), var(--range-color)) 0 50% / var(--range-fill, 0%) var(--range-track-height, 0.375rem) no-repeat,
+    linear-gradient(color-mix(in oklch, var(--range-color) 18%, transparent), color-mix(in oklch, var(--range-color) 18%, transparent)) 0 50% / 100% var(--range-track-height, 0.375rem) no-repeat;
+  border-radius: 999px;
+  transition-duration: 0ms;
+}
+
+form .range[data-range-fill]::-moz-range-progress {
+  background-color: var(--range-color);
+  border-radius: 999px;
+  height: var(--range-track-height, 0.375rem);
+}
+
+form .range[data-range-fill]::-webkit-slider-thumb,
+form .range[data-range-fill]::-moz-range-thumb {
+  transition-duration: 0ms;
+}
+
+.konevo-task-timeline.timeline-vertical .timeline-middle {
+  height: 1.5rem;
+  width: 1.5rem;
+}
+
+/* Keep controls structured rather than pill-shaped across every theme. */
+:where(.input, .select, .textarea, .badge, .btn:not(.btn-circle), button:not(.btn-circle, .rounded-full)) {
+  border-radius: 0.5rem;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  html {
+    scroll-behavior: smooth;
+  }
+}
+
+.landing-grid {
+  background-image:
+    linear-gradient(color-mix(in oklch, var(--color-base-content) 6%, transparent) 1px, transparent 1px),
+    linear-gradient(90deg, color-mix(in oklch, var(--color-base-content) 6%, transparent) 1px, transparent 1px);
+  background-size: 2rem 2rem;
+  mask-image: linear-gradient(to bottom, black, transparent 80%);
+}
+
+.landing-glow {
+  background: radial-gradient(circle, color-mix(in oklch, var(--color-primary) 18%, transparent), transparent 67%);
+}
+
+.landing-section-tint {
+  background-color: color-mix(in oklch, var(--color-base-200) 70%, transparent);
+}
+
+.product-preview-surface,
+.product-preview-surface * {
+  cursor: default !important;
+}
+
+.landing-product-demo {
+  pointer-events: none;
+}
+
+.landing-product-demo,
+.landing-product-demo * {
+  cursor: default !important;
+}
+
+[data-theme="vscode"] .landing-section-tint {
+  background-color: color-mix(in oklch, var(--color-base-200) 35%, transparent);
+}
+
+@keyframes product-preview-enter {
+  from {
+    opacity: 0.12;
+    transform: translateX(1.25rem) scale(0.988);
+  }
+
+  65% {
+    opacity: 0.96;
+    transform: translateX(0.08rem) scale(0.999);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+}
+
+.product-preview-enter {
+  animation: product-preview-enter 620ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  will-change: opacity, transform;
+}
+
+@keyframes product-preview-exit {
+  from {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+
+  to {
+    opacity: 0;
+    transform: translateX(-1rem) scale(0.992);
+  }
+}
+
+.product-preview-exit-active {
+  animation: product-preview-exit 620ms cubic-bezier(0.4, 0, 0.2, 1) both;
+  will-change: opacity, transform;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .product-preview-enter,
+  .product-preview-exit-active {
+    animation: none;
+  }
+}
+
+@keyframes ai-draft-demo-button-press {
+  0%,
+  100% {
+    transform: translateY(0) scale(1);
+  }
+
+  42% {
+    transform: translateY(0.5px) scale(0.985);
+  }
+}
+
+.ai-draft-demo-button-press {
+  animation: ai-draft-demo-button-press 480ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  box-shadow: none !important;
+}
+
+.extract-demo-button-press {
+  animation: ai-draft-demo-button-press 420ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  box-shadow: none !important;
+}
+
+.workflow-demo-mode-active {
+  border-color: color-mix(in oklch, var(--color-primary) 42%, transparent);
+  background: color-mix(in oklch, var(--color-primary) 7%, var(--color-base-100));
+}
+
+.workflow-demo-mode-active .workflow-demo-mode-dot {
+  border-color: var(--color-primary);
+  background: var(--color-primary);
+  box-shadow: 0 0 0 3px color-mix(in oklch, var(--color-primary) 15%, transparent);
+}
+
+@keyframes workflow-demo-task-enter {
+  from {
+    opacity: 0.42;
+    transform: translateY(0.35rem);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.workflow-demo-task-enter {
+  animation: workflow-demo-task-enter 520ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes email-task-demo-email-active {
+  0%,
+  100% {
+    border-color: var(--color-primary);
+    background-color: transparent;
+    box-shadow: none;
+  }
+
+  45% {
+    border-color: var(--color-primary);
+    background-color: transparent;
+    box-shadow: 0 0 0 4px color-mix(in oklch, var(--color-primary) 12%, transparent);
+  }
+}
+
+.email-task-demo-email-active,
+.email-task-demo-tasks-active {
+  animation: email-task-demo-email-active 1.2s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes email-task-demo-engine-active {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+
+  50% {
+    transform: scale(1.08);
+  }
+}
+
+.email-task-demo-engine-active .email-task-demo-engine {
+  animation: email-task-demo-engine-active 840ms ease-in-out infinite;
+  box-shadow: 0 0 0 5px color-mix(in oklch, var(--color-primary) 12%, transparent);
+}
+
+@keyframes email-task-demo-task-enter {
+  from {
+    opacity: 0;
+    transform: translateX(0.75rem);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.email-task-demo-task-enter {
+  animation: email-task-demo-task-enter 420ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes ai-demo-caret {
+  0%,
+  45% {
+    opacity: 1;
+  }
+
+  46%,
+  100% {
+    opacity: 0;
+  }
+}
+
+.ai-demo-caret {
+  animation: ai-demo-caret 840ms steps(1, end) infinite;
+  color: var(--color-primary);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ai-draft-demo-button-press,
+  .extract-demo-button-press,
+  .ai-demo-caret,
+  .workflow-demo-task-enter,
+  .email-task-demo-email-active,
+  .email-task-demo-engine-active .email-task-demo-engine,
+  .email-task-demo-task-enter {
+    animation: none;
+  }
+}
+
+.company-live-select:focus-within .company-live-select-dropdown {
+  display: block;
+}
+
+.app-scroll-container {
+  min-height: 0;
+  scrollbar-gutter: stable;
+}
+
+.assistant-messages {
+  flex: 1 1 0;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 0.625rem 0.75rem;
+}
+
+@media (min-width: 640px) {
+  .assistant-messages {
+    padding-inline: 1rem;
+  }
+}
+
+.assistant-message-stream {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.assistant-message-row {
+  align-items: flex-start;
+  display: flex;
+  gap: 0.375rem;
+  min-height: 0;
+  min-width: 0;
+  width: 100%;
+}
+
+.assistant-message-row--user {
+  justify-content: flex-end;
+}
+
+.assistant-message-avatar {
+  align-items: center;
+  background: var(--color-primary);
+  border-radius: 999px;
+  color: var(--color-primary-content);
+  display: inline-flex;
+  flex: 0 0 auto;
+  height: 1rem;
+  justify-content: center;
+  margin-top: 0.1875rem;
+  width: 1rem;
+}
+
+.assistant-message-stack {
+  display: flex;
+  flex: 0 1 auto;
+  flex-direction: column;
+  max-width: min(40rem, calc(100% - 1.5rem));
+  min-height: 0;
+  min-width: 0;
+  width: fit-content;
+}
+
+.assistant-message-stack--user {
+  align-items: flex-end;
+  max-width: min(30rem, 70%);
+}
+
+.assistant-message-bubble {
+  border-radius: 0.375rem;
+  display: inline-block;
+  font-size: 0.8125rem;
+  line-height: 1.15;
+  margin: 0;
+  max-width: 100%;
+  min-height: 0;
+  min-width: 0;
+  padding: 0.125rem 0.5rem;
+  white-space: pre-wrap;
+  width: fit-content;
+  word-break: break-word;
+}
+
+.assistant-message-bubble--assistant {
+  background: color-mix(in oklch, var(--color-base-content) 6%, transparent);
+  color: var(--color-base-content);
+}
+
+.assistant-message-bubble--user {
+  background: var(--color-primary);
+  color: var(--color-primary-content);
+}
+
+.assistant-message-time {
+  color: color-mix(in oklch, var(--color-base-content) 34%, transparent);
+  font-size: 0.5625rem;
+  line-height: 0.75rem;
+  margin: 0.0625rem 0 0;
+}
+
+.assistant-message-time--user {
+  text-align: right;
+}
+
+.assistant-generating-row {
+  align-items: center;
+  display: flex;
+  gap: 0.375rem;
+  margin-top: 0.375rem;
+}
+
+html:has(.app-scroll-container),
+body:has(.app-scroll-container) {
+  height: 100%;
+  overflow: hidden;
+}
+
+.inbox-reply-trigger:hover {
+  background-color: color-mix(in oklch, var(--color-primary) 10%, var(--color-base-100));
+  border-color: color-mix(in oklch, var(--color-primary) 25%, transparent);
+}
+
+/* live_select instant dropdown: hide via CSS, show on focus-within (overrides server-side hide_dropdown) */
+.ls-dropdown {
+  display: none;
+}
+
+[phx-hook="LiveSelect"]:focus-within .ls-dropdown {
+  display: block;
+}
+
+button.ls-clear-button {
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* The LiveSelect hook applies inline positioning to clear controls. Keep the
+   task-form control centered within the actual input, including after updates. */
+button.task-live-select-clear {
+  top: 0 !important;
+  right: 0.375rem !important;
+  bottom: 0 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  line-height: 1 !important;
+}
+
+.btn-danger {
+  --btn-bg: #dc2626;
+  --btn-border: #dc2626;
+  --btn-color: #ffffff;
+  --btn-fg: #ffffff;
+  background-color: #dc2626 !important;
+  background-image: none !important;
+  border-color: #dc2626 !important;
+  color: #ffffff !important;
+  outline-color: rgb(220 38 38 / 35%);
+}
+
+.btn-danger:hover {
+  --btn-bg: #b91c1c;
+  --btn-border: #b91c1c;
+  --btn-color: #ffffff;
+  --btn-fg: #ffffff;
+  background-color: #b91c1c !important;
+  border-color: #b91c1c !important;
+  color: #ffffff !important;
+}
+
+.btn-danger:active {
+  --btn-bg: #991b1b;
+  --btn-border: #991b1b;
+  --btn-color: #ffffff;
+  background-color: #991b1b !important;
+  border-color: #991b1b !important;
+  color: #ffffff !important;
+}
+
+.danger-action {
+  color: #dc2626;
+}
+
+.danger-action:hover {
+  border-color: rgb(220 38 38 / 12%);
+  background-color: rgb(220 38 38 / 8%);
+  color: #b91c1c;
+}
+
+/* Global loading skeleton pulse */
+@keyframes skeleton-pulse {
+  0%,
+  100% {
+    background-position: 120% 0;
+    opacity: 0.58;
+  }
+
+  50% {
+    background-position: -120% 0;
+    opacity: 1;
+  }
+}
+
+.skeleton {
+  animation: skeleton-pulse 1.45s ease-in-out infinite;
+  background-color: color-mix(in oklch, var(--color-base-content) 10%, transparent);
+  background-image: linear-gradient(
+    90deg,
+    transparent,
+    color-mix(in oklch, var(--color-base-content) 8%, transparent),
+    transparent
+  );
+  background-size: 220% 100%;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skeleton {
+    animation: none;
+  }
+}
+
+/* One theme-aware interaction surface for every control in the app topbar. */
+.topbar-action {
+  --btn-border: color-mix(in oklch, var(--color-base-content) 16%, transparent);
+  --btn-shadow: 0 1px 2px color-mix(in oklch, var(--color-base-content) 7%, transparent);
+  outline-color: color-mix(in oklch, var(--color-primary) 45%, transparent);
+}
+
+@media (hover: hover) {
+  .topbar-action:hover {
+    --btn-border: color-mix(in oklch, var(--color-primary) 42%, transparent);
+  }
+}
+
+.topbar-action:focus-visible {
+  --btn-border: var(--color-primary);
+  --btn-shadow: 0 0 0 3px color-mix(in oklch, var(--color-primary) 18%, transparent);
+}
+
+/* Use one dark neutral across themed controls and active toggle states. */
+:root,
+[data-theme] {
+  --color-neutral: #1f2937 !important;
+  --color-neutral-content: #ffffff !important;
+}
+
+@media (hover: hover) {
+  :is(a, button, [role="button"]).bg-neutral:hover {
+    background-color: #111827 !important;
+  }
+}
+
+/* Keep neutral actions consistently dark with legible white content. */
+.btn.btn-neutral {
+  --btn-bg: #1f2937;
+  --btn-border: #1f2937;
+  --btn-color: var(--btn-bg);
+  --btn-fg: #ffffff;
+  --btn-shadow: 0 2px 5px rgb(31 41 55 / 24%);
+  background-color: var(--btn-bg) !important;
+  background-image: none !important;
+  border-color: var(--btn-border) !important;
+  color: var(--btn-fg) !important;
+  outline-color: color-mix(in oklch, var(--color-primary) 48%, transparent);
+}
+
+.btn.btn-neutral > * {
+  color: #ffffff !important;
+}
+
+@media (hover: hover) {
+  .btn.btn-neutral:hover {
+    --btn-bg: #111827;
+    --btn-border: #111827;
+    --btn-shadow: 0 5px 12px rgb(17 24 39 / 30%);
+  }
+}
+
+/* Give the landing theme switcher a clear, restrained surface in dark mode. */
+[data-theme="vscode"] #test-landing-theme-toggle {
+  --btn-bg: #27364a;
+  --btn-border: #40536f;
+  --btn-fg: #dbeafe;
+  --btn-shadow: 0 1px 2px rgb(0 0 0 / 22%);
+  background-color: var(--btn-bg) !important;
+  border-color: var(--btn-border) !important;
+  color: var(--btn-fg) !important;
+}
+
+[data-theme="vscode"] #test-landing-theme-toggle > * {
+  color: var(--btn-fg) !important;
+}
+
+@media (hover: hover) {
+  [data-theme="vscode"] #test-landing-theme-toggle:hover {
+    --btn-bg: #31445d;
+    --btn-border: #54708f;
+  }
+}
+
+.btn.btn-neutral:focus-visible {
+  --btn-border: var(--color-primary);
+  --btn-shadow: 0 0 0 3px color-mix(in oklch, var(--color-primary) 22%, transparent);
+}
+
+#global-search-form .input:focus-within {
+  --input-color: var(--color-base-content);
+  --tw-shadow-color: #0000000d;
+}
+
+.calendar-summary-icon {
+  align-items: center;
+  border-radius: 0.5rem;
+  display: inline-flex;
+  height: 2.5rem;
+  justify-content: center;
+  width: 2.5rem;
+}
+
+.calendar-summary-icon--task {
+  background: color-mix(in oklch, #0ea5e9 14%, transparent);
+  color: #0284c7;
+}
+
+.calendar-summary-icon--contact {
+  background: color-mix(in oklch, #6366f1 14%, transparent);
+  color: #4f46e5;
+}
+
+.calendar-summary-icon--company {
+  background: color-mix(in oklch, #10b981 14%, transparent);
+  color: #059669;
+}
+
+.calendar-summary-icon--risk {
+  background: color-mix(in oklch, var(--color-error) 13%, transparent);
+  color: var(--color-error);
+}
+
+.calendar-toolbar-button {
+  --btn-color: var(--color-base-content);
+  --btn-fg: var(--color-base-content);
+  color: var(--color-base-content);
+}
+
+.calendar-toolbar-button:hover {
+  --btn-color: var(--color-primary);
+  --btn-fg: var(--color-primary);
+  color: var(--color-primary);
+}
+
+.calendar-view-button {
+  color: var(--color-base-content);
+}
+
+.calendar-view-button[aria-pressed="true"],
+.calendar-view-button.calendar-view-button--active {
+  --btn-bg: var(--color-primary);
+  --btn-border: var(--color-primary);
+  --btn-color: var(--color-primary);
+  --btn-fg: var(--color-primary-content);
+  background-color: var(--color-primary) !important;
+  background-image: none !important;
+  border-color: var(--color-primary) !important;
+  color: var(--color-primary-content);
+  font-weight: 700;
+}
+
+.calendar-view-button[aria-pressed="true"]:hover,
+.calendar-view-button.calendar-view-button--active:hover {
+  --btn-bg: var(--color-primary);
+  --btn-border: var(--color-primary);
+  --btn-color: var(--color-primary);
+  --btn-fg: var(--color-primary-content);
+  background-color: var(--color-primary) !important;
+  background-image: none !important;
+  border-color: var(--color-primary) !important;
+  color: var(--color-primary-content);
+}
+
+.calendar-source-button[data-active="false"] {
+  opacity: 0.45;
+  text-decoration: line-through;
+}
+
+.konevo-fullcalendar {
+  --fc-monarch-background: var(--color-base-100);
+  --fc-monarch-foreground: var(--color-base-content);
+  --fc-monarch-faint: color-mix(in oklch, var(--color-base-content) 6%, transparent);
+  --fc-monarch-muted: color-mix(in oklch, var(--color-base-content) 9%, transparent);
+  --fc-monarch-strong: color-mix(in oklch, var(--color-base-content) 16%, transparent);
+  --fc-monarch-border: color-mix(in oklch, var(--color-base-content) 11%, transparent);
+  --fc-monarch-strong-border: color-mix(in oklch, var(--color-base-content) 18%, transparent);
+  --fc-monarch-faint-foreground: color-mix(in oklch, var(--color-base-content) 35%, transparent);
+  --fc-monarch-muted-foreground: color-mix(in oklch, var(--color-base-content) 52%, transparent);
+  --fc-monarch-primary: var(--color-primary);
+  --fc-monarch-primary-foreground: var(--color-primary-content);
+  --fc-monarch-primary-over: color-mix(in oklch, var(--color-primary) 88%, var(--color-base-content));
+  --fc-monarch-primary-down: color-mix(in oklch, var(--color-primary) 78%, var(--color-base-content));
+  --fc-monarch-selected: var(--color-primary);
+  --fc-monarch-selected-foreground: var(--color-primary-content);
+  --fc-monarch-selected-over: color-mix(in oklch, var(--color-primary) 88%, var(--color-base-content));
+  --fc-monarch-selected-down: color-mix(in oklch, var(--color-primary) 78%, var(--color-base-content));
+  --fc-monarch-tertiary: var(--color-primary);
+  --fc-monarch-tertiary-foreground: var(--color-primary-content);
+  --fc-monarch-tertiary-over: color-mix(in oklch, var(--color-primary) 88%, var(--color-base-content));
+  --fc-monarch-tertiary-down: color-mix(in oklch, var(--color-primary) 78%, var(--color-base-content));
+  --fc-monarch-highlight: color-mix(in oklch, var(--color-primary) 10%, transparent);
+  --fc-monarch-now: var(--color-primary);
+  color: var(--color-base-content);
+  font-family: var(--font-sans);
+}
+
+.konevo-fullcalendar .fc {
+  height: 100%;
+}
+
+.konevo-fullcalendar :where(.fc-monarch-ku3, .fc-monarch-zi1, .fc-monarch-1Wx) {
+  border-color: color-mix(in oklch, var(--color-base-content) 10%, transparent);
+}
+
+.konevo-fullcalendar :where(.fc-monarch-4os) {
+  background-color: var(--color-primary) !important;
+}
+
+.konevo-fullcalendar :where(.fc-monarch-CCH) {
+  color: var(--color-primary-content) !important;
+}
+
+.konevo-fullcalendar :where(.fc-monarch-hbI:hover, .fc-monarch-Yws:hover) {
+  background-color: color-mix(in oklch, var(--color-primary) 88%, var(--color-base-content)) !important;
+}
+
+.konevo-fullcalendar :where(.fc-TZ, .fc-daygrid-event-harness) {
+  padding: 0.125rem 0.5rem 0.625rem;
+}
+
+.konevo-fullcalendar .fc-timegrid-event-harness {
+  overflow: visible;
+  padding: 0.0625rem 0.375rem;
+  z-index: 2;
+}
+
+.konevo-fullcalendar .fc-timegrid-event,
+.konevo-fullcalendar .fc-timegrid-event .fc-event-main,
+.konevo-fullcalendar .fc-timegrid-event .fc-event-main-frame {
+  min-height: 5.125rem;
+}
+
+.konevo-fullcalendar .fc-timegrid-event.konevo-calendar-event {
+  height: 100%;
+}
+
+.konevo-fullcalendar .fc-timegrid-event .fc-event-main,
+.konevo-fullcalendar .fc-timegrid-event .fc-event-main-frame {
+  height: 100%;
+  overflow: visible;
+  padding: 0 !important;
+}
+
+.konevo-fullcalendar .fc-timegrid-event .konevo-calendar-event-inner--timed {
+  display: grid;
+  gap: 0;
+  grid-template-rows: auto 1fr auto;
+  height: 100%;
+  overflow: hidden;
+  padding: 0.25rem 0.5rem 0.5rem;
+}
+
+.konevo-fullcalendar .fc-timegrid-event .konevo-calendar-event-inner--timed .konevo-calendar-event-topline {
+  margin-bottom: 0.125rem;
+  min-height: 1rem;
+}
+
+.konevo-fullcalendar .fc-timegrid-event .konevo-calendar-event-inner--timed .konevo-calendar-event-title {
+  align-self: end;
+  line-height: 1rem;
+  margin-top: 0;
+}
+
+.konevo-fullcalendar .fc-timegrid-event .konevo-calendar-event-inner--timed .konevo-calendar-event-footer {
+  margin-top: 0.125rem;
+}
+
+.konevo-fullcalendar .fc-timegrid-event .konevo-calendar-event-inner--timed .konevo-calendar-event-eyebrow,
+.konevo-fullcalendar .fc-timegrid-event .konevo-calendar-event-inner--timed .konevo-calendar-event-meta {
+  line-height: 1rem;
+}
+
+.konevo-fullcalendar .fc-timegrid-event .konevo-calendar-event-inner--timed .konevo-calendar-event-chip {
+  line-height: 0.8125rem;
+  padding: 0.0625rem 0.375rem;
+}
+
+.konevo-calendar-event {
+  --calendar-event-color: #0ea5e9;
+  --calendar-event-type-color: var(--calendar-event-color);
+  --calendar-status-color: #0ea5e9;
+  --fc-monarch-event: color-mix(in srgb, var(--calendar-event-color) 14%, transparent);
+  --fc-monarch-event-contrast: var(--calendar-event-color);
+  background-color: color-mix(in srgb, var(--calendar-event-color) 14%, transparent) !important;
+  background-image: none !important;
+  border: 1px solid color-mix(in srgb, var(--calendar-event-color) 35%, transparent) !important;
+  border-radius: 0.5rem !important;
+  box-shadow: 0 1px 2px color-mix(in srgb, var(--color-base-content) 8%, transparent);
+  color: var(--calendar-event-color) !important;
+  cursor: pointer;
+  margin: 0 !important;
+  overflow: hidden;
+  transition:
+    background-color 150ms ease,
+    border-color 150ms ease,
+    box-shadow 150ms ease,
+    color 150ms ease,
+    opacity 150ms ease,
+    transform 150ms ease;
+}
+
+.konevo-calendar-event:hover {
+  background-color: color-mix(in srgb, var(--calendar-event-color) 18%, transparent) !important;
+  border-color: color-mix(in srgb, var(--calendar-event-color) 45%, transparent) !important;
+  box-shadow: 0 0.25rem 0.75rem color-mix(in srgb, var(--calendar-event-color) 16%, transparent);
+  transform: translateY(-1px);
+}
+
+.konevo-calendar-event:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--calendar-event-color) 45%, transparent);
+  outline-offset: 2px;
+}
+
+.konevo-calendar-event--task {
+  --calendar-event-color: #0ea5e9;
+}
+
+.konevo-calendar-event--task-type-epic {
+  --calendar-event-color: #f59e0b;
+  --calendar-event-type-color: #f59e0b;
+}
+
+.konevo-calendar-event--google-calendar {
+  --calendar-event-color: #dc2626;
+}
+
+.konevo-calendar-event--deal-action {
+  --calendar-event-color: #6366f1;
+}
+
+.konevo-calendar-event--deal-close {
+  --calendar-event-color: #10b981;
+}
+
+.konevo-calendar-event--status-open {
+  --calendar-status-color: #0ea5e9;
+}
+
+.konevo-calendar-event--status-in_progress {
+  --calendar-status-color: #8b5cf6;
+}
+
+.konevo-calendar-event--status-done {
+  --calendar-status-color: #10b981;
+}
+
+.konevo-calendar-event--status-cancelled {
+  --calendar-status-color: #94a3b8;
+}
+
+.konevo-calendar-event-inner {
+  color: inherit;
+  min-width: 0;
+  overflow: hidden;
+  padding: 0.25rem 0.5rem 0.5rem;
+  width: 100%;
+}
+
+.konevo-calendar-event-topline,
+.konevo-calendar-event-footer {
+  align-items: center;
+  display: flex;
+  gap: 0.3125rem;
+  min-width: 0;
+}
+
+.konevo-calendar-event-topline {
+  gap: 0.25rem;
+  margin-bottom: 0.125rem;
+}
+
+.konevo-calendar-event-footer {
+  margin-top: 0.125rem;
+}
+
+.konevo-calendar-event-eyebrow {
+  align-items: center;
+  color: var(--calendar-event-type-color);
+  display: inline-flex;
+  flex: 1 1 auto;
+  gap: 0.25rem;
+  font-size: 0.625rem;
+  font-weight: 700;
+  line-height: 1rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.konevo-calendar-event-type-icon {
+  flex: 0 0 auto;
+  height: 0.75rem;
+  width: 0.75rem;
+}
+
+.konevo-calendar-event-type-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.konevo-calendar-event-title {
+  color: var(--color-base-content);
+  font-size: 0.75rem;
+  font-weight: 700;
+  line-height: 1rem;
+  margin-top: 8px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.konevo-calendar-event-meta {
+  color: color-mix(in srgb, var(--color-base-content) 56%, transparent);
+  flex: 1 1 auto;
+  font-size: 0.6875rem;
+  font-weight: 500;
+  line-height: 0.95rem;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.konevo-calendar-event-chip {
+  align-items: center;
+  border: 1px solid transparent;
+  border-radius: 0.375rem;
+  display: inline-flex;
+  flex: 0 1 auto;
+  font-size: 0.625rem;
+  font-weight: 700;
+  line-height: 0.8125rem;
+  max-width: 48%;
+  min-width: 0;
+  overflow: hidden;
+  padding: 0.0625rem 0.375rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.konevo-calendar-event-chip--status {
+  background: color-mix(in srgb, var(--calendar-status-color) 14%, transparent);
+  border-color: color-mix(in srgb, var(--calendar-status-color) 35%, transparent);
+  color: var(--calendar-status-color);
+}
+
+.konevo-calendar-empty {
+  align-items: center;
+  color: color-mix(in oklch, var(--color-base-content) 54%, transparent);
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  justify-content: center;
+  min-height: 12rem;
+  padding: 2rem;
+  text-align: center;
+}
+
+.konevo-calendar-empty-title {
+  color: var(--color-base-content);
+  font-size: 0.95rem;
+  font-weight: 700;
+}
+
+.konevo-calendar-empty-subtitle {
+  font-size: 0.8125rem;
+}
+
+[data-lightbox-close] :where([class*="icon-"]) {
+  background-color: var(--color-base-100) !important;
+  color: var(--color-base-100) !important;
+}
+
+.tiptap-button {
+  align-items: center;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 0.5rem;
+  color: color-mix(in oklch, var(--color-base-content) 62%, transparent);
+  display: inline-flex;
+  height: 2rem;
+  justify-content: center;
+  min-width: 2rem;
+  transition: background-color 150ms ease, border-color 150ms ease, color 150ms ease,
+    box-shadow 150ms ease;
+}
+
+.tiptap-button:hover,
+.tiptap-button[data-active="true"] {
+  background: color-mix(in oklch, var(--color-primary) 12%, transparent);
+  border-color: color-mix(in oklch, var(--color-primary) 25%, transparent);
+  color: var(--color-primary);
+}
+
+.tiptap-button[data-active="true"] {
+  box-shadow: inset 0 0 0 1px color-mix(in oklch, var(--color-primary) 25%, transparent);
+}
+
+.tiptap-popover-button,
+.tiptap-menu-button,
+.tiptap-swatch {
+  align-items: center;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 0.5rem;
+  color: color-mix(in oklch, var(--color-base-content) 62%, transparent);
+  display: inline-flex;
+  gap: 0.5rem;
+  min-height: 2rem;
+  padding: 0.375rem;
+  transition: background-color 150ms ease, color 150ms ease;
+}
+
+.tiptap-menu-button {
+  justify-content: flex-start;
+  padding-inline: 0.625rem;
+  text-align: left;
+  width: 100%;
+}
+
+.tiptap-popover-button:hover,
+.tiptap-menu-button:hover,
+.tiptap-swatch:hover {
+  background: color-mix(in oklch, var(--color-primary) 10%, transparent);
+  border-color: color-mix(in oklch, var(--color-primary) 22%, transparent);
+  color: var(--color-primary);
+}
+
+.tiptap-separator {
+  background: color-mix(in oklch, var(--color-base-content) 12%, transparent);
+  height: 1.5rem;
+  margin-inline: 0.25rem;
+  width: 1px;
+}
+
+.tiptap-popover:not(.hidden) {
+  display: flex;
+}
+
+.tiptap-popover-grid:not(.hidden) {
+  display: grid;
+}
+
+.tiptap-component.tiptap-compact {
+  min-height: 18rem;
+}
+
+.tiptap-component.tiptap-compact .tiptap-content {
+  min-height: 12rem;
+}
+
+.tiptap-component.inbox-reply-editor {
+  max-height: 18rem;
+  min-height: 12rem;
+  background: var(--color-base-100);
+}
+
+.tiptap-component.inbox-reply-editor > .flex-1 {
+  overflow-y: auto;
+  background: var(--color-base-100);
+}
+
+.tiptap-component.inbox-reply-editor .tiptap-content {
+  min-height: 7rem;
+  background: var(--color-base-100);
+}
+
+/* Notyf-style flash animations */
+@keyframes flash-slidein {
+  from {
+    opacity: 0;
+    transform: translateX(40px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.notyf-toast {
+  animation: flash-slidein 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+
+.sender-info-trigger {
+  position: relative;
+  z-index: 5;
+  display: inline-flex;
+  flex-shrink: 0;
+  color: color-mix(in oklab, currentColor 25%, transparent);
+  cursor: help;
+}
+
+.sender-info-trigger:hover,
+.sender-info-trigger:focus-within {
+  color: color-mix(in oklab, currentColor 55%, transparent);
+}
+
+.sender-info-popover {
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 0.45rem);
+  z-index: 80;
+  display: none;
+  max-width: min(22rem, 80vw);
+  width: max-content;
+  transform: translateX(-50%);
+  white-space: normal;
+  overflow-wrap: anywhere;
+  border: 1px solid color-mix(in oklab, currentColor 14%, transparent);
+  border-radius: 0.5rem;
+  background: var(--color-base-100);
+  color: var(--color-base-content);
+  box-shadow: 0 18px 45px color-mix(in oklab, var(--color-base-content) 14%, transparent);
+  padding: 0.5rem 0.625rem;
+  font-size: 0.75rem;
+  line-height: 1.25;
+  font-weight: 500;
+}
+
+.sender-info-trigger:hover .sender-info-popover,
+.sender-info-trigger:focus-within .sender-info-popover {
+  display: block;
+}
+
+/* RowMenu / FilterPanel panel animation — only panels using these classes get fixed positioning */
+.row-menu-closed,
+.row-menu-open {
+  position: fixed;
+  transition: opacity 120ms ease-out, transform 120ms ease-out;
+  transform-origin: top center;
+}
+
+.row-menu-closed {
+  opacity: 0;
+  transform: scale(0.95) translateY(-4px);
+  pointer-events: none;
+}
+
+.row-menu-open {
+  opacity: 1;
+  transform: scale(1) translateY(0);
+  pointer-events: auto;
+}
+
+/* Task tree row animation */
+.task-tree-row-enter {
+  transition: opacity 220ms cubic-bezier(0.34, 1.4, 0.64, 1),
+              transform 220ms cubic-bezier(0.34, 1.4, 0.64, 1);
+}
+
+.task-tree-row-enter-start {
+  opacity: 0;
+  transform: translateY(-6px) scale(0.99);
+}
+
+.task-tree-row-enter-end {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+}
+
+.task-tree-row-leave {
+  transition: opacity 100ms ease-out, transform 100ms ease-out;
+  pointer-events: none;
+}
+
+.task-tree-row-leave-start {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.task-tree-row-leave-end {
+  opacity: 0;
+  transform: translateY(-6px);
+}
+
+/* Toggle button loading state */
+.toggle-btn[phx-click-loading] .loading-spinner {
+  display: inline-flex !important;
+}
+
+.toggle-btn[phx-click-loading] svg {
+  display: none;
+}
+
+/* Drawer: skeleton vs real content, toggled by data-loading attribute */
+#task-drawer-body[data-loading] .drawer-real-content {
+  display: none !important;
+}
+
+#task-drawer-body:not([data-loading]) .drawer-skeleton {
+  display: none !important;
+}
+
+/* While switching tasks: hide stale real content and force skeleton visible.
+   is-switching rules come AFTER the data-loading rules so they win on equal specificity. */
+#task-drawer-body.is-switching .drawer-real-content {
+  opacity: 0 !important;
+  pointer-events: none !important;
+  transition: opacity 80ms ease !important;
+}
+
+#task-drawer-body.is-switching .drawer-skeleton {
+  display: flex !important;
+}
+
+/* After switch completes: fade the whole body in smoothly */
+#task-drawer-body.is-entering {
+  animation: drawer-body-enter 260ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes drawer-body-enter {
+  from { opacity: 0.4; }
+  to   { opacity: 1; }
+}
+
+/* Drawer panel — GPU-composited slide animation */
+/* Tailwind v4 uses the CSS `translate` property (not `transform`) for translate-x-* utilities */
+.drawer-panel {
+  /* CSS custom property for easing — changed by derived rules to control direction */
+  --drawer-timing: 260ms cubic-bezier(0.25, 1, 0.35, 1);
+  will-change: translate;
+  backface-visibility: hidden;
+  transition: translate var(--drawer-timing), box-shadow var(--drawer-timing);
+}
+
+/* Override easing only on close — ease-in: accelerates as it leaves */
+/* :not([data-pre-open="true"]) ensures close easing never conflicts with optimistic open */
+#task-drawer.drawer-panel.drawer-closed:not([data-pre-open="true"]) {
+  --drawer-timing: 220ms cubic-bezier(0.55, 0, 1, 0.45);
+}
+
+/*
+ * Optimistic open: set data-pre-open via JS.set_attribute on task link click.
+ * #id + [attr] specificity (1,1,0) beats .drawer-panel.drawer-closed (0,2,0),
+ * so spring easing wins for the open direction even when drawer-closed is still present.
+ */
+#task-drawer[data-pre-open="true"] {
+  translate: 0;
+  box-shadow: 0 25px 50px -12px color-mix(in srgb, var(--color-base-content) 25%, transparent);
+  --drawer-timing: 260ms cubic-bezier(0.25, 1, 0.35, 1);
+}
+
+/* Backdrop: transition is always present via Tailwind's transition-opacity class */
+#task-drawer-backdrop[data-pre-open="true"] {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+@keyframes drawer-content-enter {
+  from {
+    opacity: 0;
+    transform: translateX(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.drawer-content-enter {
+  animation: drawer-content-enter 240ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+
+.flatpickr-monthSelect-month.selected {
+  color: #fff !important;
+}
+
+.flatpickr-calendar.arrowTop:before,
+.flatpickr-calendar.arrowTop:after {
+  display: none;
+}
+
+.tiptap-content p,
+.rich-text-content p {
+  margin-block: 0.5rem;
+}
+
+.tiptap-content h1,
+.rich-text-content h1 {
+  font-size: 1.5rem;
+  font-weight: 700;
+  line-height: 1.25;
+  margin-block: 0.9rem 0.5rem;
+}
+
+.tiptap-content h2,
+.rich-text-content h2 {
+  font-size: 1.25rem;
+  font-weight: 700;
+  line-height: 1.3;
+  margin-block: 0.8rem 0.45rem;
+}
+
+.tiptap-content h3,
+.rich-text-content h3 {
+  font-size: 1.125rem;
+  font-weight: 650;
+  line-height: 1.35;
+  margin-block: 0.7rem 0.4rem;
+}
+
+.tiptap-content h4,
+.rich-text-content h4 {
+  font-size: 1rem;
+  font-weight: 650;
+  line-height: 1.4;
+  margin-block: 0.6rem 0.35rem;
+}
+
+.tiptap-content p:first-child,
+.rich-text-content p:first-child {
+  margin-top: 0;
+}
+
+.tiptap-content p:last-child,
+.rich-text-content p:last-child {
+  margin-bottom: 0;
+}
+
+.tiptap-content ul,
+.rich-text-content ul {
+  list-style: disc;
+  margin-block: 0.5rem;
+  padding-left: 1.25rem;
+}
+
+.tiptap-content ol,
+.rich-text-content ol {
+  list-style: decimal;
+  margin-block: 0.5rem;
+  padding-left: 1.25rem;
+}
+
+.tiptap-content blockquote,
+.rich-text-content blockquote {
+  border-left: 3px solid var(--color-primary);
+  color: color-mix(in oklch, var(--color-base-content) 72%, transparent);
+  margin-block: 0.75rem;
+  padding-left: 0.875rem;
+}
+
+.tiptap-content a,
+.rich-text-content a {
+  color: var(--color-primary);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.tiptap-content pre,
+.rich-text-content pre {
+  background: #0d1117;
+  border-radius: 0.5rem;
+  color: #e6edf3;
+  margin-block: 0.75rem;
+  overflow-x: auto;
+  padding: 0.875rem;
+}
+
+.tiptap-content code,
+.rich-text-content code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.875em;
+}
+
+.tiptap-content :not(pre) > code,
+.rich-text-content :not(pre) > code {
+  background: color-mix(in oklch, var(--color-base-content) 8%, transparent);
+  border-radius: 0.375rem;
+  padding: 0.125rem 0.25rem;
+}
+
+.tiptap-content mark,
+.rich-text-content mark {
+  border-radius: 0.25rem;
+  padding-inline: 0.125rem;
+}
+
+.tiptap-content .is-editor-empty:first-child::before {
+  color: color-mix(in oklch, var(--color-base-content) 38%, transparent);
+  content: attr(data-placeholder);
+  float: left;
+  height: 0;
+  pointer-events: none;
+}
+
+/* Active preset button */
+/* Fix browser autofill grey/yellow background */
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus,
+input:-webkit-autofill:active {
+  -webkit-box-shadow: 0 0 0 1000px var(--color-base-100) inset !important;
+  -webkit-text-fill-color: var(--color-base-content) !important;
+  caret-color: var(--color-base-content);
+}
+
+/* Sidebar active nav item */
+.sidebar-nav-link[aria-current="page"] {
+  background-color: color-mix(in oklch, var(--color-primary) 12%, transparent);
+  color: var(--color-primary);
+  font-weight: 600;
+}
+
+.date-preset-active {
+  background-color: color-mix(in oklch, var(--color-primary) 12%, transparent) !important;
+  color: var(--color-primary) !important;
+  font-weight: 600;
+}
+
+.flatpickr-prev-month:hover svg {
+  stroke: var(--color-primary);
+}
+
+.flatpickr-next-month:hover svg {
+  stroke: var(--color-primary);
+}
+
+/* Today: just primary text, no background */
+.flatpickr-day.today:not(.selected):not(.startRange):not(.endRange):not(.inRange) {
+  background: transparent !important;
+  border-color: transparent !important;
+  color: var(--color-primary) !important;
+  font-weight: 700;
+}
+
+/* Selected range — every day gets a circle, no rounded band */
+.flatpickr-day.inRange,
+.flatpickr-day.nextMonthDay.inRange,
+.flatpickr-day.inRange:hover,
+.flatpickr-day.startRange,
+.flatpickr-day.endRange,
+.flatpickr-day.selected.startRange,
+.flatpickr-day.selected.endRange,
+.flatpickr-day.startRange.startRange,
+.flatpickr-day.endRange.endRange,
+.flatpickr-day.startRange.endRange {
+  border-radius: 50% !important;
+  box-shadow: none !important;
+}
+
+/* In-range days: solid primary circle */
+.flatpickr-day.inRange,
+.flatpickr-day.nextMonthDay.inRange,
+.flatpickr-day.inRange:hover {
+  background: var(--color-primary) !important;
+  border-color: transparent !important;
+  color: var(--color-primary-content) !important;
+}
+
+/* Start and end: lighter circle with primary ring (like today indicator) */
+.flatpickr-day.startRange,
+.flatpickr-day.startRange:hover,
+.flatpickr-day.endRange,
+.flatpickr-day.endRange:hover,
+.flatpickr-day.selected,
+.flatpickr-day.selected:hover {
+  background: color-mix(in oklch, var(--color-primary) 20%, transparent) !important;
+  border-color: var(--color-primary) !important;
+  color: var(--color-primary) !important;
+  font-weight: 700;
+}
+
+/* Header: month/year left, both arrows on right */
+.flatpickr-months {
+  display: flex !important;
+  align-items: center;
+  padding: 4px 8px;
+}
+
+.flatpickr-months .flatpickr-month {
+  order: 0;
+  flex: 1;
+  float: none !important;
+}
+
+.flatpickr-months .flatpickr-prev-month,
+.flatpickr-months .flatpickr-next-month {
+  position: static !important;
+  float: none !important;
+  flex: none;
+  top: auto !important;
+  line-height: 1;
+}
+
+.flatpickr-months .flatpickr-prev-month {
+  order: 2;
+}
+
+.flatpickr-months .flatpickr-next-month {
+  order: 3;
+}
+
+/* Arrow icons */
+.flatpickr-prev-month,
+.flatpickr-next-month {
+  width: 22px !important;
+  height: 22px !important;
+  padding: 3px !important;
+  display: flex !important;
+  align-items: center;
+  justify-content: center;
+}
+
+.flatpickr-prev-month {
+  margin-right: 4px !important;
+}
+
+.flatpickr-prev-month svg,
+.flatpickr-next-month svg {
+  width: 16px !important;
+  height: 16px !important;
+}
+
+
+/* Add variants based on LiveView classes */
+@custom-variant phx-click-loading (.phx-click-loading&, .phx-click-loading &);
+@custom-variant phx-submit-loading (.phx-submit-loading&, .phx-submit-loading &);
+@custom-variant phx-change-loading (.phx-change-loading&, .phx-change-loading &);
+
+/* Use the VS Code theme data attribute for dark mode. */
+@custom-variant dark (&:where([data-theme=vscode], [data-theme=vscode] *));
+
+/* Make LiveView wrapper divs transparent for layout */
+[data-phx-session], [data-phx-teleported-src] { display: contents }
+
+/* Sidebar: pre-JS collapsed state (avoids flash on load) */
+html[data-sidebar-collapsed] #sidebar {
+  width: 4rem;
+}
+
+/* Sidebar transitions: width on desktop, transform on mobile */
+#sidebar {
+  transition: width 220ms ease, transform 220ms ease;
+}
+
+#sidebar.is-collapsed {
+  width: 4rem;
+}
+
+/* Pre-collapse: applied synchronously from <head> script before first paint */
+html[data-sidebar-collapsed] #sidebar {
+  width: 4rem;
+  transition: none;
+}
+
+html[data-sidebar-collapsed] #sidebar [data-sidebar-hide] {
+  display: none;
+}
+
+html[data-sidebar-collapsed] #sidebar [data-sidebar-show] {
+  display: flex;
+}
+
+html[data-sidebar-collapsed] #sidebar [data-sidebar-header] {
+  padding-inline: 0.25rem;
+}
+
+#sidebar.is-collapsed .sidebar-nav-link,
+html[data-sidebar-collapsed] #sidebar .sidebar-nav-link {
+  justify-content: center;
+  padding-inline: 0;
+}
+
+html[data-sidebar-collapsed] #sidebar [data-sidebar-brand],
+html[data-sidebar-collapsed] #sidebar-desktop-collapse-button {
+  flex: none;
+  margin-inline: auto;
+}
+
+html[data-sidebar-collapsed] #sidebar [data-sidebar-account-row] {
+  flex-direction: column;
+}
+
+html[data-sidebar-collapsed] #sidebar [data-sidebar-user-menu] {
+  flex: none;
+}
+
+html[data-sidebar-collapsed] #sidebar-user-menu-button {
+  width: 2.5rem;
+  height: 2.5rem;
+  justify-content: center;
+  padding: 0;
+}
+
+@media (max-width: 1023px) {
+  #sidebar {
+    position: fixed;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    z-index: 50;
+    width: 4rem;
+    transform: translateX(-100%);
+  }
+
+  #sidebar.is-open {
+    transform: translateX(0);
+  }
+
+  #sidebar.is-open:not(.is-collapsed) {
+    width: 16rem;
+  }
+}
+
+/* This file is for your main application CSS */
+
+dialog[data-lightbox-dialog][open] {
+  animation: lightbox-enter 180ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+dialog[data-lightbox-dialog][open]::backdrop {
+  animation: lightbox-backdrop-enter 180ms ease-out;
+}
+
+dialog[data-lightbox-dialog] {
+  transition: width 180ms cubic-bezier(0.16, 1, 0.3, 1),
+              height 180ms cubic-bezier(0.16, 1, 0.3, 1),
+              border-radius 180ms ease-out;
+}
+
+dialog[data-lightbox-dialog][data-fullscreen="true"] {
+  width: 100vw;
+  height: 100dvh;
+  max-width: none;
+  max-height: none;
+  border-radius: 0;
+}
+
+dialog[data-lightbox-dialog][data-fullscreen="true"] [data-lightbox-surface] {
+  border-radius: 0;
+}
+
+@keyframes lightbox-enter {
+  from {
+    opacity: 0;
+    transform: translateY(0.75rem) scale(0.985);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes lightbox-backdrop-enter {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  dialog[data-lightbox-dialog][open],
+  dialog[data-lightbox-dialog][open]::backdrop {
+    animation: none;
+  }
+}
+
+@theme {
+  --font-sans: "Roboto", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif;
+}
+
+/* ─── Kanban column collapse animation ─────────────────────────────────────── */
+
+.kc-panel {
+  overflow: hidden;
+  flex-shrink: 0;
+  transition:
+    width 240ms cubic-bezier(0.4, 0, 0.2, 1),
+    opacity 200ms ease,
+    border-width 240ms ease;
+}
+
+.kc-panel-collapsed {
+  width: 0 !important;
+  opacity: 0;
+  pointer-events: none;
+  border-width: 0 !important;
+}
+
+/* ─── Kanban drag state ────────────────────────────────────────────────────── */
+
+.kanban-stage-column {
+  animation: kanban-stage-open 220ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  transform-origin: left center;
+  will-change: width, opacity, transform;
+}
+
+.kanban-stage-collapsed {
+  animation: kanban-stage-collapse 180ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  transform-origin: left center;
+  will-change: width, opacity, transform;
+}
+
+.kanban-stage-column > *,
+.kanban-stage-collapsed > * {
+  animation: kanban-stage-content-in 180ms cubic-bezier(0.16, 1, 0.3, 1) 40ms both;
+}
+
+.kanban-mobile-stage {
+  animation: kanban-mobile-stage-in 180ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.kanban-mobile-stage-body {
+  animation: kanban-mobile-stage-body-open 220ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  transform-origin: top center;
+  overflow: hidden;
+}
+
+@keyframes kanban-stage-open {
+  from {
+    width: 2.5rem;
+    opacity: 0.7;
+    transform: translateX(-4px) scaleX(0.98);
+  }
+  to {
+    width: 15rem;
+    opacity: 1;
+    transform: translateX(0) scaleX(1);
+  }
+}
+
+@keyframes kanban-stage-collapse {
+  from {
+    width: 15rem;
+    opacity: 0.82;
+    transform: translateX(4px) scaleX(1.01);
+  }
+  to {
+    width: 2.5rem;
+    opacity: 1;
+    transform: translateX(0) scaleX(1);
+  }
+}
+
+@keyframes kanban-stage-content-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes kanban-mobile-stage-in {
+  from {
+    opacity: 0.72;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes kanban-mobile-stage-body-open {
+  from {
+    max-height: 0;
+    opacity: 0;
+    transform: scaleY(0.98);
+  }
+  to {
+    max-height: 42rem;
+    opacity: 1;
+    transform: scaleY(1);
+  }
+}
+
+.kanban-drag-hidden {
+  position: absolute !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+}
+
+.kanban-drag-ghost {
+  opacity: 0 !important;
+}
+
+.kanban-drag-source {
+  opacity: 0 !important;
+}
+
+.kanban-drag-chosen {
+  cursor: grabbing;
+}
+
+.kanban-drag-fallback {
+  display: block !important;
+  pointer-events: none !important;
+  opacity: 0.96 !important;
+  z-index: 2147483647 !important;
+  filter: drop-shadow(0 18px 24px rgba(15, 23, 42, 0.18));
+  rotate: 2deg;
+  scale: 1.02;
+  transition:
+    filter 120ms ease,
+    opacity 120ms ease,
+    rotate 120ms ease,
+    scale 120ms ease;
+  will-change: transform, rotate, scale;
+}
+
+.kanban-drag-fallback > * {
+  box-shadow: 0 18px 40px rgba(15, 23, 42, 0.18);
+}
+
+.kanban-original-placeholder {
+  opacity: 0.34;
+  transition:
+    opacity 160ms ease,
+    box-shadow 160ms ease;
+}
+
+.kanban-drop-placeholder {
+  border: 2px dashed rgba(105, 65, 198, 0.45);
+  border-radius: 0.75rem;
+  background: linear-gradient(
+    135deg,
+    rgba(105, 65, 198, 0.08),
+    rgba(20, 184, 166, 0.08)
+  );
+  box-shadow: inset 0 0 0 4px rgba(105, 65, 198, 0.08);
+  opacity: 0.78;
+  animation: kanban-drop-placeholder-in 140ms ease-out;
+}
+
+.kanban-drop-placeholder > * {
+  opacity: 0.72;
+}
+
+.kanban-drop-pending {
+  opacity: 0.92;
+  box-shadow: 0 10px 26px rgba(15, 23, 42, 0.10);
+  transition:
+    opacity 160ms ease,
+    box-shadow 160ms ease;
+}
+
+.kanban-drop-settling {
+  animation: kanban-drop-settle 200ms ease-out both;
+}
+
+@keyframes kanban-drop-placeholder-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 0.78;
+    transform: translateY(0);
+  }
+}
+
+@keyframes kanban-drop-settle {
+  from {
+    opacity: 0.72;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 0.92;
+    transform: translateY(0);
+  }
+}
+
+body.kanban-is-dragging,
+body.kanban-is-dragging * {
+  cursor: grabbing !important;
+}
+
+body.kanban-is-dragging [phx-hook="SortableKanban"] {
+  transition: background-color 150ms ease;
+}
+
+.drag-handle {
+  cursor: grab;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .kanban-stage-column,
+  .kanban-stage-collapsed,
+  .kanban-stage-column > *,
+  .kanban-stage-collapsed > *,
+  .kanban-mobile-stage,
+  .kanban-mobile-stage-body,
+  .kanban-drag-fallback,
+  .kanban-original-placeholder,
+  .kanban-drop-placeholder,
+  .kanban-drop-pending,
+  .kanban-drop-settling {
+    animation: none;
+    transition: none;
+  }
+}

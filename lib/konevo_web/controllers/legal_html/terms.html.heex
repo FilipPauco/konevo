@@ -1,0 +1,122 @@
+<main id="terms-of-use" class="min-h-screen bg-base-100 text-base-content">
+  <header class="border-b border-base-content/10 bg-base-100">
+    <div class="mx-auto flex max-w-5xl items-center justify-between px-5 py-5 sm:px-8">
+      <a href={~p"/"} class="flex items-center gap-2.5" aria-label={gettext("Konevo home page")}>
+        <img src={~p"/images/logo-navbar-v2.png"} class="size-10 object-contain" alt="" />
+        <span class="text-lg font-bold tracking-tight text-primary">{gettext("Konevo")}</span>
+      </a>
+      <a
+        href={~p"/privacy"}
+        class="text-sm font-medium text-base-content/60 transition-colors hover:text-primary"
+      >
+        {gettext("Privacy Policy")}
+      </a>
+    </div>
+  </header>
+
+  <article class="mx-auto max-w-3xl px-5 py-14 sm:px-8 sm:py-20">
+    <p class="text-sm font-semibold text-primary">{gettext("Legal")}</p>
+    <h1 class="mt-3 text-4xl font-bold tracking-tight sm:text-5xl">{gettext("Terms of Use")}</h1>
+    <p class="mt-4 text-sm text-base-content/55">{gettext("Effective 15 August 2026")}</p>
+
+    <div class="mt-10 rounded-2xl border border-primary/20 bg-primary/5 p-5 sm:p-6">
+      <div class="flex gap-3">
+        <.icon name="icon-[tabler--scale]" class="mt-0.5 size-5 shrink-0 text-primary" />
+        <div>
+          <h2 class="font-semibold">{gettext("License terms take priority")}</h2>
+          <p class="mt-1.5 leading-7 text-base-content/70">
+            {gettext(
+              "Konevo is source-available software. The applicable PolyForm license and the project licensing documents govern use of the software and take priority if they conflict with these terms."
+            )}
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <div class="mt-12 space-y-11 leading-7 text-base-content/70">
+      <section>
+        <h2 class="text-xl font-semibold text-base-content">{gettext("1. Using Konevo")}</h2>
+        <p class="mt-3">
+          {gettext(
+            "You may use, modify, and run Konevo only as allowed by the applicable PolyForm license. The project license covers personal and noncommercial use as well as internal business use, but does not permit redistribution, resale, hosted or managed service use for third parties, white-labeling, or sublicensing without prior written permission."
+          )}
+        </p>
+        <p class="mt-3">
+          <a
+            href="https://github.com/FilipPauco/konevo/blob/main/LICENSE"
+            target="_blank"
+            rel="noreferrer"
+            class="font-medium text-primary underline decoration-primary/30 underline-offset-4 hover:decoration-primary"
+          >
+            {gettext("Read the Konevo license")}
+          </a>
+          {gettext(" and the commercial licensing terms before using Konevo.")}
+        </p>
+      </section>
+
+      <section>
+        <h2 class="text-xl font-semibold text-base-content">
+          {gettext("2. Self-hosted responsibility")}
+        </h2>
+        <p class="mt-3">
+          {gettext(
+            "Konevo is self-hosted. The operator of an instance is responsible for its infrastructure, backups, security, user access, data retention, integrations, and compliance with applicable privacy, employment, marketing, and communications laws."
+          )}
+        </p>
+      </section>
+
+      <section>
+        <h2 class="text-xl font-semibold text-base-content">
+          {gettext("3. Email, Gmail, and automation")}
+        </h2>
+        <p class="mt-3">
+          {gettext(
+            "You must connect only email accounts you are authorised to use. You are responsible for the messages you send, the recipients you contact, consent and suppression requirements, and every automation you enable. Konevo must not be used to send spam, bypass Gmail safeguards, or violate Google, email-provider, or applicable-law requirements."
+          )}
+        </p>
+      </section>
+
+      <section>
+        <h2 class="text-xl font-semibold text-base-content">{gettext("4. AI features")}</h2>
+        <p class="mt-3">
+          {gettext(
+            "AI features use the provider and API key configured by the instance operator. AI output may be inaccurate, incomplete, or unsuitable for a particular situation. Review every generated task, draft, and recommendation before relying on it or sending it."
+          )}
+        </p>
+      </section>
+
+      <section>
+        <h2 class="text-xl font-semibold text-base-content">
+          {gettext("5. Third-party services")}
+        </h2>
+        <p class="mt-3">
+          {gettext(
+            "Google, Gmail, calendar services, AI providers, hosting providers, and other integrations are independent services governed by their own terms and privacy policies. You are responsible for configuring and using those services lawfully."
+          )}
+        </p>
+      </section>
+
+      <section>
+        <h2 class="text-xl font-semibold text-base-content">{gettext("6. Contact")}</h2>
+        <p class="mt-3">
+          {gettext("For licensing or product questions, contact")}
+          <a
+            href="mailto:filip.pauco08@gmail.com"
+            class="ml-1 font-medium text-primary underline decoration-primary/30 underline-offset-4 hover:decoration-primary"
+          >
+            filip.pauco08@gmail.com
+          </a>.
+        </p>
+      </section>
+    </div>
+  </article>
+
+  <footer class="border-t border-base-content/10 px-5 py-6 text-sm text-base-content/55 sm:px-8">
+    <div class="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-3">
+      <span>&copy; {Date.utc_today().year} Konevo</span>
+      <a href={~p"/"} class="font-medium text-primary hover:text-primary/75">
+        {gettext("Back to Konevo")}
+      </a>
+    </div>
+  </footer>
+</main>

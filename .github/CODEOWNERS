@@ -1,0 +1,7 @@
+# Production-sensitive files require Filip's review before merging to main.
+/.github/workflows/ @FilipPauco
+/Dockerfile @FilipPauco
+/deploy/ @FilipPauco
+/mix.exs @FilipPauco
+/mix.lock @FilipPauco
+/assets/package-lock.json @FilipPauco

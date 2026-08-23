@@ -1,0 +1,27 @@
+[Unit]
+Description=Deploy the latest Konevo GitHub release image
+Wants=network-online.target
+After=network-online.target docker.service
+ConditionPathExists=/opt/konevo/app/.env
+
+[Service]
+Type=oneshot
+User=konevo-deploy
+Group=konevo-deploy
+SupplementaryGroups=docker
+WorkingDirectory=/opt/konevo/app
+EnvironmentFile=/etc/konevo/deploy.env
+ExecStart=/usr/local/sbin/konevo-deploy
+TimeoutStartSec=30min
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=full
+ReadWritePaths=/opt/konevo/app /var/lib/konevo
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+MemoryDenyWriteExecute=true

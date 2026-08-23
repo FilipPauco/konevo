@@ -1,0 +1,237 @@
+name: Release Image
+
+on:
+  push:
+    branches: [main]
+
+# Releases are ordered: a newer merge must not publish ahead of an older one.
+concurrency:
+  group: release-main
+  cancel-in-progress: false
+
+# Keep the default token read-only. Jobs opt into only the privileges they need.
+permissions:
+  contents: read
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  verify:
+    name: Verify main
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: konevo_test
+        ports:
+          - 5433:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      MIX_ENV: test
+      DATABASE_URL: ecto://postgres:postgres@localhost/konevo_test
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Elixir
+        uses: erlef/setup-beam@v1
+        with:
+          elixir-version: "1.19.5"
+          otp-version: "28.1"
+
+      - name: Cache dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            deps
+            _build
+          key: ${{ runner.os }}-mix-${{ hashFiles('**/mix.lock') }}
+          restore-keys: ${{ runner.os }}-mix-
+
+      - name: Install system dependencies
+        run: sudo apt-get install -y imagemagick
+
+      - name: Install dependencies
+        run: mix deps.get
+
+      - name: Check formatting
+        run: mix format --check-formatted
+
+      - name: Compile with warnings as errors
+        run: mix compile --warnings-as-errors
+
+      - name: Run unit and integration tests
+        run: mix test
+
+      - name: Run Credo
+        run: mix credo --strict
+
+  build:
+    name: Build and push immutable image
+    needs: verify
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    outputs:
+      sha_tag: ${{ steps.meta.outputs.sha_tag }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install system dependencies
+        run: sudo apt-get install -y imagemagick
+
+      # GITHUB_TOKEN is GitHub-provided and short-lived; do not create a
+      # repository secret for it. The token is scoped by this job's permissions.
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+
+      - name: Set lowercase image name
+        run: echo "IMAGE_NAME=${IMAGE_NAME,,}" >> "$GITHUB_ENV"
+
+      - name: Derive immutable SHA tag
+        id: meta
+        run: |
+          sha_tag="${REGISTRY}/${IMAGE_NAME}:${GITHUB_SHA}"
+          echo "sha_tag=${sha_tag}" >> "$GITHUB_OUTPUT"
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.sha_tag }}
+          labels: |
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+
+  tag:
+    name: Create version tag
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    outputs:
+      version: ${{ steps.bump.outputs.version }}
+
+    steps:
+      - name: Checkout full history
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Calculate next Conventional Commit version
+        id: bump
+        shell: bash
+        run: |
+          latest=$(git tag --list 'v[0-9]*.[0-9]*.[0-9]*' | sort -V | tail -n1)
+          latest=${latest:-v0.0.0}
+          IFS='.' read -r major minor patch <<< "${latest#v}"
+
+          if git rev-parse --verify --quiet "refs/tags/${latest}" >/dev/null; then
+            commits=$(git log "${latest}..HEAD" --pretty=format:"%s%n%b")
+          else
+            commits=$(git log HEAD --pretty=format:"%s%n%b")
+          fi
+
+          if grep -qE '(^|\s)BREAKING[- ]CHANGE|^[a-z]+(\([^)]+\))?!:' <<< "$commits"; then
+            bump=major
+          elif grep -qE '^feat(\([^)]+\))?:' <<< "$commits"; then
+            bump=minor
+          else
+            bump=patch
+          fi
+
+          case "$bump" in
+            major) version="v$((major + 1)).0.0" ;;
+            minor) version="v${major}.$((minor + 1)).0" ;;
+            patch) version="v${major}.${minor}.$((patch + 1))" ;;
+          esac
+
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+          echo "bump=${bump}" >> "$GITHUB_OUTPUT"
+
+      - name: Push git tag
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -a "${{ steps.bump.outputs.version }}" "${{ github.sha }}" \
+            -m "${{ steps.bump.outputs.version }} (${{ steps.bump.outputs.bump }} bump)"
+          git push origin "${{ steps.bump.outputs.version }}"
+
+  retag:
+    name: Publish immutable release image
+    needs: [build, tag]
+    runs-on: ubuntu-latest
+    permissions:
+      packages: write
+
+    outputs:
+      image: ${{ steps.retag.outputs.image }}
+
+    steps:
+      # GITHUB_TOKEN is GitHub-provided and short-lived; no custom secret is
+      # required to publish this repository's GHCR package.
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+
+      - name: Set lowercase image name
+        run: echo "IMAGE_NAME=${IMAGE_NAME,,}" >> "$GITHUB_ENV"
+
+      - name: Retag the SHA image as the release version
+        id: retag
+        shell: bash
+        run: |
+          sha_tag="${{ needs.build.outputs.sha_tag }}"
+          image="${REGISTRY}/${IMAGE_NAME}:${{ needs.tag.outputs.version }}"
+
+          docker pull "$sha_tag"
+          docker tag "$sha_tag" "$image"
+          docker push "$image"
+
+          echo "image=${image}" >> "$GITHUB_OUTPUT"
+
+  release:
+    name: Publish GitHub release
+    needs: [tag, retag]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      # A release is created only after the corresponding GHCR image is pullable.
+      # The Hetzner pull deployer watches these immutable vX.Y.Z release tags.
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${{ needs.tag.outputs.version }}" \
+            --repo "${{ github.repository }}" \
+            --title "${{ needs.tag.outputs.version }}" \
+            --generate-notes \
+            --verify-tag

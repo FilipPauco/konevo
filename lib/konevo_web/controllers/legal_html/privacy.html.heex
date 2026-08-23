@@ -1,0 +1,175 @@
+<main id="privacy-policy" class="min-h-screen bg-base-100 text-base-content">
+  <header class="border-b border-base-content/10 bg-base-100">
+    <div class="mx-auto flex max-w-5xl items-center justify-between px-5 py-5 sm:px-8">
+      <a href={~p"/"} class="flex items-center gap-2.5" aria-label={gettext("Konevo home page")}>
+        <img src={~p"/images/logo-navbar-v2.png"} class="size-10 object-contain" alt="" />
+        <span class="text-lg font-bold tracking-tight text-primary">{gettext("Konevo")}</span>
+      </a>
+      <a
+        href={~p"/terms"}
+        class="text-sm font-medium text-base-content/60 transition-colors hover:text-primary"
+      >
+        {gettext("Terms of Use")}
+      </a>
+    </div>
+  </header>
+
+  <article class="mx-auto max-w-3xl px-5 py-14 sm:px-8 sm:py-20">
+    <p class="text-sm font-semibold text-primary">{gettext("Legal")}</p>
+    <h1 class="mt-3 text-4xl font-bold tracking-tight sm:text-5xl">
+      {gettext("Privacy Policy")}
+    </h1>
+    <p class="mt-4 text-sm text-base-content/55">{gettext("Effective 15 August 2026")}</p>
+
+    <div class="mt-10 rounded-2xl border border-primary/20 bg-primary/5 p-5 sm:p-6">
+      <div class="flex gap-3">
+        <.icon name="icon-[tabler--server-2]" class="mt-0.5 size-5 shrink-0 text-primary" />
+        <div>
+          <h2 class="font-semibold">{gettext("Konevo is self-hosted")}</h2>
+          <p class="mt-1.5 leading-7 text-base-content/70">
+            {gettext(
+              "Konevo does not run a shared customer-data service. The person or organisation operating an instance decides how data in that instance is processed."
+            )}
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <div class="mt-12 space-y-11 leading-7 text-base-content/70">
+      <section>
+        <h2 class="text-xl font-semibold text-base-content">
+          {gettext("1. Who this policy covers")}
+        </h2>
+        <p class="mt-3">
+          {gettext(
+            "This policy covers the public Konevo website and the Konevo software. It explains the responsibilities of the public website operator and of people who run their own Konevo instance."
+          )}
+        </p>
+      </section>
+
+      <section>
+        <h2 class="text-xl font-semibold text-base-content">
+          {gettext("2. Public website controller and contact")}
+        </h2>
+        <p class="mt-3">
+          {gettext(
+            "For the public Konevo website, the data controller is Filip Paučo, an independent developer based in Slovakia."
+          )}
+        </p>
+        <p class="mt-3">
+          {gettext("For privacy questions or to exercise your rights, email")}
+          <a
+            href="mailto:filip.pauco08@gmail.com"
+            class="ml-1 font-medium text-primary underline decoration-primary/30 underline-offset-4 hover:decoration-primary"
+          >
+            filip.pauco08@gmail.com
+          </a>.
+        </p>
+      </section>
+
+      <section>
+        <h2 class="text-xl font-semibold text-base-content">
+          {gettext("3. Self-hosted instances")}
+        </h2>
+        <p class="mt-3">
+          {gettext(
+            "Every self-hosted Konevo instance is operated independently. Its operator is responsible for its hosting provider, server location, users, retention settings, integrations, security measures, and lawful basis for processing data. Filip Paučo does not receive, access, or control data stored in a self-hosted instance unless the operator separately provides it for support."
+          )}
+        </p>
+      </section>
+
+      <section>
+        <h2 class="text-xl font-semibold text-base-content">
+          {gettext("4. Data processed by an instance")}
+        </h2>
+        <p class="mt-3">
+          {gettext("Depending on the features enabled, an instance may process:")}
+        </p>
+        <ul class="mt-3 list-disc space-y-1.5 pl-5">
+          <li>{gettext("account, organisation, and sign-in information;")}</li>
+          <li>{gettext("contacts, companies, tasks, deals, notes, and activity records;")}</li>
+          <li>
+            {gettext(
+              "email addresses, message headers, message bodies, recipients, attachments, and thread metadata synced from connected inboxes;"
+            )}
+          </li>
+          <li>{gettext("Google OAuth tokens needed to maintain a Gmail connection;")}</li>
+          <li>
+            {gettext("settings, audit records, and files added by the operator or its users.")}
+          </li>
+        </ul>
+      </section>
+
+      <section>
+        <h2 class="text-xl font-semibold text-base-content">
+          {gettext("5. Gmail and Google data")}
+        </h2>
+        <p class="mt-3">
+          {gettext(
+            "Before a Gmail account is connected, Konevo presents an in-app notice and asks for affirmative acknowledgement. With the account holder's Google authorization, Konevo requests only the permissions needed for its email workspace: reading and changing mailbox state, sending email, importing basic Gmail settings such as a signature, reading calendar events, and identifying the connected Google email address."
+          )}
+        </p>
+        <p class="mt-3">
+          {gettext(
+            "Gmail data is used to display and organise conversations, send messages the operator requests or authorises through enabled automation, import a signature, and show connected calendar events. It is stored only in the operator's self-hosted instance. Disconnecting Gmail stops future access, but does not by itself erase data previously stored in the instance."
+          )}
+        </p>
+        <p class="mt-3">
+          {gettext(
+            "Konevo does not sell Google user data or use it for advertising. Konevo's use and transfer of information received from Google APIs adheres to the Google API Services User Data Policy, including the Limited Use requirements."
+          )}
+        </p>
+      </section>
+
+      <section>
+        <h2 class="text-xl font-semibold text-base-content">
+          {gettext("6. AI features and third-party providers")}
+        </h2>
+        <p class="mt-3">
+          {gettext(
+            "When an operator uses an AI feature or enables an AI automation, Konevo sends only the email, thread, or CRM content needed for that feature to the AI provider configured for that instance. The operator chooses the provider and API key. That provider processes the content under its own terms and privacy policy, and may process data outside the European Economic Area."
+          )}
+        </p>
+        <p class="mt-3">
+          {gettext(
+            "The public Konevo website operator does not receive the content sent to an operator's configured AI provider."
+          )}
+        </p>
+      </section>
+
+      <section>
+        <h2 class="text-xl font-semibold text-base-content">
+          {gettext("7. Retention, deletion, and rights")}
+        </h2>
+        <p class="mt-3">
+          {gettext(
+            "An instance operator controls how long its instance keeps data. People whose data is in an instance should contact that instance operator to request access, correction, deletion, restriction, objection, or portability. The public website operator will respond to privacy requests about the public website at the contact address above."
+          )}
+        </p>
+        <p class="mt-3">
+          {gettext(
+            "If you are in the European Economic Area, you may also lodge a complaint with your local data-protection authority."
+          )}
+        </p>
+      </section>
+
+      <section>
+        <h2 class="text-xl font-semibold text-base-content">{gettext("8. Changes")}</h2>
+        <p class="mt-3">
+          {gettext(
+            "This policy may change when Konevo's data practices change. A revised effective date will be published on this page."
+          )}
+        </p>
+      </section>
+    </div>
+  </article>
+
+  <footer class="border-t border-base-content/10 px-5 py-6 text-sm text-base-content/55 sm:px-8">
+    <div class="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-3">
+      <span>&copy; {Date.utc_today().year} Konevo</span>
+      <a href={~p"/"} class="font-medium text-primary hover:text-primary/75">
+        {gettext("Back to Konevo")}
+      </a>
+    </div>
+  </footer>
+</main>

@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <defs>
+    <linearGradient id="bg" x1="4" y1="2" x2="28" y2="31" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#38bdf8"/>
+      <stop offset=".52" stop-color="#2563eb"/>
+      <stop offset="1" stop-color="#0f3c9d"/>
+    </linearGradient>
+    <linearGradient id="mail" x1="16" y1="7" x2="16" y2="25" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#fff"/>
+      <stop offset="1" stop-color="#d9f3ff"/>
+    </linearGradient>
+  </defs>
+  <rect width="32" height="32" rx="7" fill="url(#bg)"/>
+  <path d="M5 8.5C8 4.5 19 3 26 6.5" fill="none" stroke="#fff" stroke-linecap="round" stroke-opacity=".32" stroke-width="2"/>
+  <rect x="4.5" y="7" width="23" height="18" rx="3.5" fill="url(#mail)" stroke="#0b479f" stroke-width="2"/>
+  <path d="m6.1 9.4 9.9 7.8 9.9-7.8" fill="none" stroke="#0b479f" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2"/>
+  <path d="m6.1 23.3 7.2-6m12.6 6-7.2-6" fill="none" stroke="#0b479f" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2"/>
+  <path d="M8 10.2h16" stroke="#fff" stroke-linecap="round" stroke-opacity=".75" stroke-width="1"/>
+</svg>

@@ -1,0 +1,148 @@
+msgid ""
+msgstr ""
+"Language: sk\n"
+"Plural-Forms: nplurals=3; plural=(n==1) ? 0 : (n>=2 && n<=4) ? 1 : 2;\n"
+
+msgid "Calendar"
+msgstr "Kalendár"
+
+msgid "New task"
+msgstr "Nová úloha"
+
+msgid "Tasks due"
+msgstr "Úlohy na termín"
+
+msgid "Deal actions"
+msgstr "Akcie obchodov"
+
+msgid "Contacts in view"
+msgstr "Kontakty v pohľade"
+
+msgid "Companies in view"
+msgstr "Firmy v pohľade"
+
+msgid "Close dates"
+msgstr "Dátumy uzavretia"
+
+msgid "Overdue in view"
+msgstr "Po termíne v pohľade"
+
+msgid "Loading visible range"
+msgstr "Načítavam viditeľný rozsah"
+
+msgid "Visible window"
+msgstr "Viditeľné obdobie"
+
+msgid "Tasks"
+msgstr "Úlohy"
+
+msgid "Deal next actions"
+msgstr "Ďalšie kroky obchodov"
+
+msgid "Follow-ups"
+msgstr "Follow-upy"
+
+msgid "Expected close dates"
+msgstr "Očakávané uzavretia"
+
+msgid "Planner focus"
+msgstr "Plánovací fokus"
+
+msgid "Use the calendar to see due work, deal follow-ups, and closing targets in one planning surface."
+msgstr "Použi kalendár na prehľad úloh, follow-upov obchodov a cieľov uzavretia na jednej plánovacej ploche."
+
+msgid "Use the calendar to see due work, follow-ups, contacts, and company deadlines in one planning surface."
+msgstr "Použi kalendár na prehľad úloh, follow-upov, kontaktov a firemných termínov na jednej plánovacej ploche."
+
+msgid "Best next step"
+msgstr "Najlepší ďalší krok"
+
+msgid "Open an item to continue in Tasks or Deals."
+msgstr "Otvor položku a pokračuj v Úlohách alebo Obchodoch."
+
+msgid "Open an item to continue with the related contact or company."
+msgstr "Otvor položku a pokračuj s priradeným kontaktom alebo firmou."
+
+msgid "No planned work in this range"
+msgstr "V tomto rozsahu nie je nič naplánované"
+
+msgid "Try another view or add a task with a due date."
+msgstr "Skús iný pohľad alebo pridaj úlohu s termínom."
+
+msgid "Planner"
+msgstr "Plánovač"
+
+msgid "Loading events"
+msgstr "Načítavam udalosti"
+
+msgid "Previous range"
+msgstr "Predchádzajúci rozsah"
+
+msgid "Today"
+msgstr "Dnes"
+
+msgid "Next range"
+msgstr "Ďalší rozsah"
+
+msgid "Month"
+msgstr "Mesiac"
+
+msgid "Week"
+msgstr "Týždeň"
+
+msgid "Day"
+msgstr "Deň"
+
+msgid "List"
+msgstr "Zoznam"
+
+msgid "1 event visible"
+msgstr "1 udalosť viditeľná"
+
+msgid "events visible"
+msgstr "viditeľných udalostí"
+
+msgid "You cannot view calendar items"
+msgstr "Nemôžeš zobraziť položky kalendára"
+
+msgid "Failed to load calendar items"
+msgstr "Nepodarilo sa načítať položky kalendára"
+
+msgid "Due date"
+msgstr "Termín"
+
+msgid "Select date and time"
+msgstr "Vyber dátum a čas"
+
+msgid "Task due date updated"
+msgstr "Termín úlohy bol aktualizovaný"
+
+msgid "Failed to update due date"
+msgstr "Nepodarilo sa aktualizovať termín"
+
+msgid "Task"
+msgstr "Úloha"
+
+msgid "Deal action"
+msgstr "Akcia obchodu"
+
+msgid "Follow-up"
+msgstr "Follow-up"
+
+msgid "Close date"
+msgstr "Dátum uzavretia"
+
+msgid "Close target"
+msgstr "Cieľ uzavretia"
+
+msgid "No linked record"
+msgstr "Bez prepojeného záznamu"
+
+msgid "No linked contact or company"
+msgstr "Bez prepojeného kontaktu alebo firmy"
+
+msgid "Unknown contact"
+msgstr "Neznámy kontakt"
+
+msgid "Expected close"
+msgstr "Očakávané uzavretie"

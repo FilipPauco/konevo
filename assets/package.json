@@ -1,0 +1,27 @@
+{
+  "dependencies": {
+    "@popperjs/core": "^2.11.8",
+    "@tiptap/core": "^3.26.1",
+    "@tiptap/extension-code-block-lowlight": "^3.26.1",
+    "@tiptap/extension-highlight": "^3.26.1",
+    "@tiptap/extension-link": "^3.26.1",
+    "@tiptap/extension-placeholder": "^3.26.1",
+    "@tiptap/extension-text-align": "^3.26.1",
+    "@tiptap/extension-underline": "^3.26.1",
+    "@tiptap/starter-kit": "^3.26.1",
+    "apexcharts": "^5.15.0",
+    "flatpickr": "^4.6.13",
+    "flyonui": "^2.4.1",
+    "fullcalendar": "^7.0.0",
+    "highlight.js": "^11.11.1",
+    "live_select": "file:../deps/live_select",
+    "lodash": "^4.18.1",
+    "lowlight": "^3.3.0",
+    "sortablejs": "^1.15.7",
+    "temporal-polyfill": "^1.0.1"
+  },
+  "devDependencies": {
+    "@iconify-json/tabler": "^1.2.35",
+    "@iconify/tailwind4": "^1.2.3"
+  }
+}

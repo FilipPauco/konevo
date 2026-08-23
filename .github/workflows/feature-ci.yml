@@ -1,0 +1,71 @@
+name: Feature Branch CI
+
+on:
+  push:
+    branches:
+      - "**"
+      - "!main"
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  ci:
+    name: Format · Compile · Test
+    runs-on: ubuntu-latest
+
+    # ── Postgres for light integration tests ───────────────────────────────
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: konevo_test
+        ports:
+          - 5433:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      MIX_ENV: test
+      DATABASE_URL: "ecto://postgres:postgres@localhost/konevo_test"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Elixir
+        uses: erlef/setup-beam@v1
+        with:
+          elixir-version: "1.19.5"
+          otp-version: "28.1"
+
+      # ── Dependency cache ─────────────────────────────────────────────────
+      - name: Cache deps
+        uses: actions/cache@v4
+        with:
+          path: |
+            deps
+            _build
+          key: ${{ runner.os }}-mix-${{ hashFiles('**/mix.lock') }}
+          restore-keys: ${{ runner.os }}-mix-
+
+      - name: Install system dependencies
+        run: sudo apt-get install -y imagemagick
+
+      - name: Install dependencies
+        run: mix deps.get
+
+      # ── Quality gates ─────────────────────────────────────────────────────
+      - name: Check formatting
+        run: mix format --check-formatted
+
+      - name: Compile (warnings as errors)
+        run: mix compile --warnings-as-errors
+
+      - name: Run unit + light integration tests
+        run: mix test --exclude heavy_integration

@@ -1,0 +1,75 @@
+# Lefthook — Git hooks manager
+# Docs: https://github.com/evilmartians/lefthook
+#
+# ── One-time machine setup ────────────────────────────────────────────────────
+#   Windows (scoop):  scoop install lefthook
+#   macOS (brew):     brew install lefthook
+#   Linux:            go install github.com/evilmartians/lefthook@latest
+#   Then:             lefthook install
+#
+# ── Required mix.exs deps (add to :dev / :dev,:test) ─────────────────────────
+#   {:credo,     "~> 1.7",  only: [:dev, :test], runtime: false}
+#   {:sobelow,   "~> 0.13", only: [:dev],        runtime: false}
+#   {:mix_audit, "~> 2.1",  only: [:dev, :test], runtime: false}
+#   Then: mix deps.get
+#
+# ── Optional external tool ───────────────────────────────────────────────────
+#   gitleaks (secret scanning): https://github.com/gitleaks/gitleaks#install
+
+# ── Commit message convention (Conventional Commits) ─────────────────────────
+commit-msg:
+  scripts:
+    "validate-commit-msg.sh":
+      runner: bash
+
+# ── Pre-commit checks ─────────────────────────────────────────────────────────
+# piped: true → sequential; stops on first failure (fail fast).
+pre-commit:
+  piped: true
+
+  commands:
+    format:
+      name: "Elixir · format check"
+      glob: "**/*.{ex,exs}"
+      run: mix format --check-formatted
+
+    compile:
+      name: "Elixir · compile (warnings as errors)"
+      env:
+        MIX_ENV: test
+      run: mix compile --warnings-as-errors
+
+    credo:
+      name: "Elixir · Credo lint"
+      glob: "**/*.{ex,exs}"
+      run: mix credo --strict
+
+    sobelow:
+      name: "Elixir · Sobelow security audit"
+      glob: "**/*.{ex,exs}"
+      run: mix sobelow --exit
+
+    deps-audit:
+      name: "Deps · CVE audit (mix_audit)"
+      run: mix deps.audit
+
+    unused-deps:
+      name: "Deps · unused lock entries"
+      run: mix deps.unlock --check-unused
+
+    secrets:
+      name: "Secrets - gitleaks scan"
+      run: command -v gitleaks && gitleaks protect --staged --redact -v || echo "gitleaks not installed, skipping"
+
+    js-lint:
+      name: "JS/TS · ESLint"
+      glob: "assets/**/*.{js,ts,jsx,tsx}"
+      run: cd assets && npx --yes eslint@10 . --max-warnings 0
+
+# ── Auto-reinstall hooks after git pull / merge ───────────────────────────────
+# Keeps .git/hooks/ in sync with this file without any manual step.
+post-merge:
+  commands:
+    reinstall:
+      name: "Lefthook · reinstall hooks"
+      run: lefthook install

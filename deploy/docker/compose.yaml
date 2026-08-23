@@ -1,0 +1,70 @@
+name: konevo
+
+services:
+  db:
+    image: postgres:18-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: konevo
+      POSTGRES_USER: konevo
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U konevo -d konevo"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    volumes:
+      # PostgreSQL 18 stores its cluster in a versioned subdirectory.
+      # Mount the parent directory so upgrades remain supported.
+      - postgres_data:/var/lib/postgresql
+    networks:
+      - internal
+
+  app:
+    # CI publishes this immutable release image to GHCR. APP_IMAGE is supplied
+    # only by the release deploy service; application secrets stay in .env.
+    image: "${APP_IMAGE:?Set APP_IMAGE to an immutable GHCR release tag}"
+    restart: unless-stopped
+    env_file:
+      - ../../.env
+    environment:
+      DATABASE_URL: "ecto://konevo:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}@db:5432/konevo"
+      PHX_SERVER: "true"
+      UPLOADS_ROOT: /data/uploads
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - /opt/konevo/uploads:/data/uploads
+    expose:
+      - "4000"
+    security_opt:
+      - no-new-privileges:true
+    networks:
+      - internal
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    depends_on:
+      - app
+    env_file:
+      - ../../.env
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    networks:
+      - internal
+
+volumes:
+  postgres_data:
+  caddy_data:
+  caddy_config:
+
+networks:
+  internal:
+    driver: bridge
