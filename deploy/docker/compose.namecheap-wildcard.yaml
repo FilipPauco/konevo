@@ -1,0 +1,9 @@
+services:
+  caddy:
+    build:
+      context: .
+      dockerfile: Caddyfile.namecheap.Dockerfile
+    image: konevo-caddy-namecheap:local
+    pull_policy: build
+    volumes:
+      - ./Caddyfile.namecheap-wildcard:/etc/caddy/Caddyfile:ro

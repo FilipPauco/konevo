@@ -8,7 +8,23 @@ defmodule Konevo.Workers.NoReplyFollowUpWorkerTest do
   alias Konevo.Messaging
   alias Konevo.Workers.NoReplyFollowUpWorker
 
+  defp with_ai_response(response) do
+    original = Application.fetch_env!(:konevo, :ai)
+
+    Application.put_env(:konevo, :ai,
+      provider: Konevo.AIMockProvider,
+      models: %{
+        fast: %{provider: :mock, model: "mock-fast", api_key: "test"},
+        standard: %{provider: :mock, model: "mock-standard", api_key: "test", response: response},
+        premium: %{provider: :mock, model: "mock-premium", api_key: "test"}
+      }
+    )
+
+    on_exit(fn -> Application.put_env(:konevo, :ai, original) end)
+  end
+
   test "processes active automatic no-reply workflows" do
+    with_ai_response("Hello,\n\nI am following up.\n\nBest regards,")
     user = insert(:user)
     org = insert(:organization)
     membership = insert(:membership, user: user, organization: org, role: :owner)
@@ -56,7 +72,7 @@ defmodule Konevo.Workers.NoReplyFollowUpWorkerTest do
       organization: org,
       sequence: sequence,
       action_type: :prepare_follow_up,
-      action_config: %{"subject" => "Checking in", "body" => "Still interested?"}
+      action_config: %{"subject" => "Checking in"}
     )
 
     assert :ok = NoReplyFollowUpWorker.perform(%Oban.Job{args: %{"organization_id" => org.id}})

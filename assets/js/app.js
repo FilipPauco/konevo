@@ -40,6 +40,7 @@ import RangeInputHook from "./hooks/range_input"
 import FullCalendarPlannerHook from "./hooks/fullcalendar_planner"
 import ScheduleDropdownHook from "./hooks/schedule_dropdown"
 import EmailSelectionActionsHook from "./hooks/email_selection_actions"
+import CollapsiblePanelHook from "./hooks/collapsible_panel"
 
 // Include phoenix_html to handle method=PUT/DELETE in forms and buttons.
 import "phoenix_html"
@@ -52,8 +53,11 @@ import topbar from "../vendor/topbar"
 const csrfToken = document.querySelector("meta[name='csrf-token']").getAttribute("content")
 const liveSocket = new LiveSocket("/live", Socket, {
   longPollFallbackMs: 2500,
-  params: {_csrf_token: csrfToken},
-  hooks: {...colocatedHooks, ...live_select, Flatpickr: FlatpickrHook, DateRangePicker: DateRangePickerHook, FormSelect: FormSelectHook, AutoResize, RowMenu: RowMenuHook, ImageLightbox: ImageLightboxHook, TiptapEditor: TiptapEditorHook, TipTapRichText: TiptapEditorHook, FlashToast: FlashToastHook, NameTip: NameTipHook, FilterPanel: FilterPanelHook, SortableKanban, DrawerBody: DrawerBodyHook, RangeInput: RangeInputHook, FullCalendarPlanner: FullCalendarPlannerHook, ScheduleDropdown: ScheduleDropdownHook, EmailSelectionActions: EmailSelectionActionsHook},
+  params: {
+    _csrf_token: csrfToken,
+    viewport: window.matchMedia("(min-width: 640px)").matches ? "desktop" : "mobile",
+  },
+  hooks: {...colocatedHooks, ...live_select, Flatpickr: FlatpickrHook, DateRangePicker: DateRangePickerHook, FormSelect: FormSelectHook, AutoResize, RowMenu: RowMenuHook, ImageLightbox: ImageLightboxHook, TiptapEditor: TiptapEditorHook, TipTapRichText: TiptapEditorHook, FlashToast: FlashToastHook, NameTip: NameTipHook, FilterPanel: FilterPanelHook, SortableKanban, DrawerBody: DrawerBodyHook, RangeInput: RangeInputHook, FullCalendarPlanner: FullCalendarPlannerHook, ScheduleDropdown: ScheduleDropdownHook, EmailSelectionActions: EmailSelectionActionsHook, CollapsiblePanel: CollapsiblePanelHook},
 })
 
 window.addEventListener("phx:inbox-thread-selection", event => {

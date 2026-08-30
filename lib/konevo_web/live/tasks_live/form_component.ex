@@ -323,7 +323,7 @@ defmodule KonevoWeb.TasksLive.FormComponent do
               myself={@myself}
               label={gettext("Depends on")}
               value={@depends_on_task_id}
-              options={task_live_options(@task_options)}
+              options={dependency_task_live_options(@task_options)}
               placeholder={gettext("Search blocking tasks")}
               empty_label={gettext("No dependency")}
             />
@@ -433,6 +433,7 @@ defmodule KonevoWeb.TasksLive.FormComponent do
       icon="icon-[tabler--category]"
       placeholder={gettext("Choose task type")}
       allow_clear={false}
+      use_option_colors={true}
     />
     """
   end
@@ -456,6 +457,7 @@ defmodule KonevoWeb.TasksLive.FormComponent do
       placeholder={@placeholder}
       allow_clear={false}
       disabled={@disabled}
+      use_option_colors={true}
     />
     """
   end
@@ -488,7 +490,7 @@ defmodule KonevoWeb.TasksLive.FormComponent do
       value={@value}
       icon="icon-[tabler--subtask]"
       placeholder={@placeholder}
-      allow_clear={true}
+      allow_clear={false}
       disabled={@disabled}
     />
     """
@@ -503,8 +505,11 @@ defmodule KonevoWeb.TasksLive.FormComponent do
   attr(:allow_clear, :boolean, default: true)
   attr(:disabled, :boolean, default: false)
   attr(:value, :any, default: nil)
+  attr(:use_option_colors, :boolean, default: false)
 
   defp task_live_select(assigns) do
+    select_value = select_value(assigns.value, assigns.field.value)
+
     errors =
       if Phoenix.Component.used_input?(assigns.field) do
         Enum.map(assigns.field.errors, &translate_error/1)
@@ -512,31 +517,36 @@ defmodule KonevoWeb.TasksLive.FormComponent do
         []
       end
 
+    selected_option = selected_live_option(assigns.options, select_value)
+
     assigns =
       assigns
       |> assign(:errors, errors)
-      |> assign(:select_value, select_value(assigns.value, assigns.field.value))
+      |> assign(:select_value, select_value)
+      |> assign(:selected_option, selected_option)
+      |> assign(:selected_icon, Map.get(selected_option || %{}, :icon, assigns.icon))
       |> assign(
-        :selected_color,
-        selected_option_color(assigns.options, select_value(assigns.value, assigns.field.value))
+        :selected_icon_style,
+        if(assigns.use_option_colors, do: task_select_icon_style(selected_option), else: nil)
       )
 
     ~H"""
     <div class="fieldset flex w-full flex-col gap-2">
       <span class="label">{@label}</span>
-      <div class="relative w-full">
+      <div class="group relative w-full">
         <span class="pointer-events-none absolute inset-y-0 left-3 z-20 flex items-center">
           <span
-            class="flex size-6 items-center justify-center rounded-md border"
-            style={live_select_gutter_style(@selected_color)}
+            id={"#{@field.id}-select-icon"}
+            class="flex size-6 items-center justify-center rounded-md border border-primary/15 bg-primary/10 text-primary/70"
+            style={@selected_icon_style}
           >
-            <.icon name={@icon} class="size-3.5" />
+            <.icon name={@selected_icon} class="size-3.5" />
           </span>
         </span>
         <.live_select
           field={@field}
           options={@options}
-          value={@select_value}
+          value={@selected_option || @select_value}
           value_mapper={&live_select_value(&1, @options)}
           phx-target={@myself}
           placeholder={@placeholder}
@@ -546,21 +556,19 @@ defmodule KonevoWeb.TasksLive.FormComponent do
           debounce={120}
           update_min_len={0}
           container_class="relative w-full"
-          text_input_class="input w-full pl-11 pr-8 font-medium placeholder:text-base-content/40 disabled:bg-base-200/50"
-          text_input_selected_class="border-base-content/15"
-          clear_button_class="task-live-select-clear absolute inset-y-0 right-1.5 z-20 flex w-8 items-center justify-center leading-none text-base-content/35 transition-colors hover:text-base-content/70"
-          dropdown_class="absolute left-0 top-[calc(100%+4px)] z-[300] w-full max-h-64 overflow-y-auto rounded-lg border border-base-content/10 bg-base-100 p-1.5 shadow-xl shadow-base-content/10"
-          option_class="flex w-full items-center gap-2.5 rounded-md px-2.5 py-2 text-sm"
+          text_input_class="input w-full cursor-pointer pl-11 pr-12 font-medium placeholder:text-base-content/40 focus:cursor-text disabled:bg-base-200/50"
+          dropdown_class="absolute left-0 top-[calc(100%+4px)] z-[300] w-full max-h-60 overflow-y-auto rounded-lg border border-base-content/10 bg-base-100 p-1 shadow-xl shadow-base-content/10"
+          option_class="flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-sm"
           available_option_class="cursor-pointer rounded-md hover:bg-base-200/70"
           selected_option_class="cursor-pointer rounded-md bg-base-200/70 font-semibold"
           active_option_class="bg-base-200"
         >
           <:option :let={opt}>
             <span
-              class="flex size-7 shrink-0 items-center justify-center rounded-md border"
-              style={live_select_option_icon_style(opt)}
+              class="flex size-6 shrink-0 items-center justify-center rounded-md border border-primary/15 bg-primary/10 text-primary/70"
+              style={if(@use_option_colors, do: task_select_icon_style(opt), else: nil)}
             >
-              <.icon name={Map.get(opt, :icon, "icon-[tabler--checkbox]")} class="size-3.5" />
+              <.icon name={Map.get(opt, :icon, "icon-[tabler--checkbox]")} class="size-3" />
             </span>
             <span class={[
               "min-w-0 flex-1 truncate",
@@ -571,14 +579,19 @@ defmodule KonevoWeb.TasksLive.FormComponent do
             <.icon
               :if={opt.selected}
               name="icon-[tabler--check]"
-              class="size-3.5 shrink-0"
-              style={live_select_icon_color(opt)}
+              class="size-3.5 shrink-0 text-primary"
             />
           </:option>
-          <:clear_button>
-            <.icon name="icon-[tabler--x]" class="size-4" />
-          </:clear_button>
         </.live_select>
+        <span
+          id={"#{@field.id}-select-chevron"}
+          class="pointer-events-none absolute inset-y-0 right-2 z-20 flex items-center text-base-content/45"
+        >
+          <.icon
+            name="icon-[tabler--chevron-down]"
+            class="size-4 transition-transform duration-200 group-focus-within:rotate-180"
+          />
+        </span>
       </div>
       <.error :for={msg <- @errors}>{msg}</.error>
     </div>
@@ -629,7 +642,7 @@ defmodule KonevoWeb.TasksLive.FormComponent do
   defp live_select_options("depends_on_task_id", socket, text) do
     [
       %{label: gettext("No dependency"), value: "", icon: "icon-[tabler--ban]"}
-      | filter_live_options(task_live_options(socket.assigns.task_options), text)
+      | filter_live_options(dependency_task_live_options(socket.assigns.task_options), text)
     ]
   end
 
@@ -663,18 +676,27 @@ defmodule KonevoWeb.TasksLive.FormComponent do
   end
 
   defp parent_task_live_options(_tasks, true), do: []
-  defp parent_task_live_options(tasks, false), do: task_live_options(tasks)
+  defp parent_task_live_options(tasks, false), do: relationship_task_live_options(tasks)
 
-  defp task_live_options(tasks) do
+  defp dependency_task_live_options(tasks) do
+    tasks
+    |> Enum.reject(&Map.get(&1, :task_type_parent_only?, false))
+    |> relationship_task_live_options()
+  end
+
+  defp relationship_task_live_options(tasks) do
     Enum.map(tasks, fn task ->
       %{
         label: task.title,
         value: task.id,
-        icon: "icon-[tabler--subtask]",
+        icon: relationship_task_icon(task),
         color: "#0ea5e9"
       }
     end)
   end
+
+  defp relationship_task_icon(%{task_type_parent_only?: true}), do: "icon-[tabler--crown]"
+  defp relationship_task_icon(_task), do: "icon-[tabler--menu-2]"
 
   defp selected_parent_task_id(assigns) do
     assigns.parent_task_id || normalize_id(assigns.form[:parent_task_id].value)
@@ -801,7 +823,7 @@ defmodule KonevoWeb.TasksLive.FormComponent do
         label: gettext("Low"),
         value: "low",
         icon: "icon-[tabler--flag-filled]",
-        color: "#64748b"
+        color: "#94a3b8"
       },
       %{
         label: gettext("Normal"),
@@ -828,6 +850,19 @@ defmodule KonevoWeb.TasksLive.FormComponent do
   defp task_type_icon(%{name: "Epic"}), do: "icon-[tabler--crown]"
   defp task_type_icon(_task_type), do: "icon-[tabler--menu-2]"
 
+  defp task_select_icon_style(%{color: color}) do
+    color = valid_hex_color(color, "#0ea5e9")
+
+    [
+      "color: #{color}",
+      "background-color: color-mix(in srgb, #{color} 12%, transparent)",
+      "border-color: color-mix(in srgb, #{color} 24%, transparent)"
+    ]
+    |> Enum.join("; ")
+  end
+
+  defp task_select_icon_style(_option), do: nil
+
   # LiveSelect sends form values back from the browser as strings. Match those
   # values against the option value so integer foreign keys retain their label
   # (for example, "6" remains "Task" rather than being rendered as "6").
@@ -844,60 +879,17 @@ defmodule KonevoWeb.TasksLive.FormComponent do
   defp select_value("", field_value), do: field_value
   defp select_value(value, _field_value), do: value
 
-  defp selected_option_color(options, value) do
-    value = live_select_value(value, options)
+  defp selected_live_option(_options, value) when value in [nil, ""], do: nil
 
-    options
-    |> Enum.find(fn option -> option.value == value end)
-    |> case do
-      %{color: color} -> valid_hex_color(color, "#0ea5e9")
-      _option -> "#0ea5e9"
-    end
-  end
-
-  defp live_select_gutter_style(color) do
-    color = valid_hex_color(color, "#0ea5e9")
-
-    [
-      "background-color: color-mix(in srgb, #{color} 14%, transparent)",
-      "border-color: color-mix(in srgb, #{color} 35%, transparent)",
-      "color: #{color}"
-    ]
-    |> Enum.join("; ")
-  end
-
-  defp live_select_option_icon_style(%{value: value}) when value in [nil, ""] do
-    [
-      "background-color: color-mix(in srgb, var(--color-base-content) 8%, transparent)",
-      "border-color: color-mix(in srgb, var(--color-base-content) 12%, transparent)",
-      "color: color-mix(in srgb, var(--color-base-content) 38%, transparent)"
-    ]
-    |> Enum.join("; ")
-  end
-
-  defp live_select_option_icon_style(option) do
-    color = option |> Map.get(:color) |> valid_hex_color("#0ea5e9")
-
-    [
-      "background-color: color-mix(in srgb, #{color} 14%, transparent)",
-      "border-color: color-mix(in srgb, #{color} 35%, transparent)",
-      "color: #{color}"
-    ]
-    |> Enum.join("; ")
-  end
-
-  defp live_select_icon_color(option) do
-    color = option |> Map.get(:color) |> valid_hex_color("#0ea5e9")
-    "color: #{color}"
+  defp selected_live_option(options, value) do
+    Enum.find(options, &(to_string(&1.value) == to_string(value)))
   end
 
   defp valid_hex_color(color, fallback)
        when is_binary(color) and byte_size(color) in [4, 7] do
-    if Regex.match?(~r/^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/, color) do
-      color
-    else
-      fallback
-    end
+    if Regex.match?(~r/^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/, color),
+      do: color,
+      else: fallback
   end
 
   defp valid_hex_color(_color, fallback), do: fallback

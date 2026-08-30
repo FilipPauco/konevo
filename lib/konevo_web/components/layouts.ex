@@ -44,6 +44,10 @@ defmodule KonevoWeb.Layouts do
         phx-click={
           JS.remove_class("is-open", to: "#sidebar")
           |> JS.add_class("hidden", to: "#sidebar-backdrop")
+          |> JS.remove_class("hidden", to: "#mobile-menu-open-icon")
+          |> JS.add_class("hidden", to: "#mobile-menu-close-icon")
+          |> JS.set_attribute({"aria-expanded", "false"}, to: "#mobile-menu-toggle")
+          |> JS.set_attribute({"aria-label", gettext("Open menu")}, to: "#mobile-menu-toggle")
         }
       />
       <.sidebar current_path={@current_path} current_scope={@current_scope} />
@@ -296,7 +300,7 @@ defmodule KonevoWeb.Layouts do
   def page(assigns) do
     ~H"""
     <div class="mx-auto max-w-screen-2xl px-4 py-4 sm:px-6 sm:py-6">
-      <div :if={@title || @actions != []} class="mb-4 sm:mb-6 flex items-center justify-between gap-4">
+      <div :if={@title || @actions != []} class="mb-6 flex items-center justify-between gap-4">
         <h1 :if={@title} class="text-xl sm:text-2xl font-bold text-base-content">{@title}</h1>
         <div :if={@actions != []} class="flex shrink-0 items-center gap-3">
           {render_slot(@actions)}
@@ -322,14 +326,14 @@ defmodule KonevoWeb.Layouts do
         data-sidebar-header
         class="flex h-16 shrink-0 items-center border-b border-base-content/20 px-3 group-[.is-collapsed]/sidebar:px-1"
       >
-        <a
-          href="/"
+        <.link
+          navigate={~p"/dashboard"}
           data-sidebar-brand
           class="flex flex-1 items-center gap-0.5 min-w-0 overflow-hidden group-[.is-collapsed]/sidebar:flex-none group-[.is-collapsed]/sidebar:mx-auto"
         >
           <img
             src={~p"/images/logo-navbar-v2.png"}
-            class="size-14 shrink-0 object-contain"
+            class="size-10 shrink-0 object-contain"
             alt="Konevo"
           />
           <span
@@ -338,7 +342,7 @@ defmodule KonevoWeb.Layouts do
           >
             {gettext("Konevo")}
           </span>
-        </a>
+        </.link>
       </div>
 
       <nav class="flex-1 overflow-y-auto px-3 py-4">
@@ -462,7 +466,7 @@ defmodule KonevoWeb.Layouts do
           </li>
           <li>
             <.link
-              href={~p"/calendar"}
+              href={~p"/calendar?#{[view: "month", date: Date.to_iso8601(Date.utc_today())]}"}
               title={gettext("Calendar")}
               aria-current={nav_active?(@current_path, "/calendar") && "page"}
               class={[
@@ -707,22 +711,32 @@ defmodule KonevoWeb.Layouts do
     ~H"""
     <header class="relative flex h-16 shrink-0 items-center justify-between border-b border-base-content/20 bg-base-100 px-4 lg:px-6">
       <div class="flex items-center gap-2">
-        <%!-- Mobile hamburger: opens the sidebar drawer --%>
+        <%!-- Mobile menu toggle: hamburger becomes a close control while open --%>
         <button
+          id="mobile-menu-toggle"
           type="button"
           phx-click={
-            JS.add_class("is-collapsed", to: "#sidebar")
-            |> JS.add_class("is-open", to: "#sidebar")
-            |> JS.remove_class("hidden", to: "#sidebar-backdrop")
+            JS.toggle_class("is-open", to: "#sidebar")
+            |> JS.add_class("is-collapsed", to: "#sidebar")
+            |> JS.toggle_class("hidden", to: "#sidebar-backdrop")
+            |> JS.toggle_class("hidden", to: "#mobile-menu-open-icon")
+            |> JS.toggle_class("hidden", to: "#mobile-menu-close-icon")
+            |> JS.toggle_attribute({"aria-expanded", "true", "false"}, to: "#mobile-menu-toggle")
+            |> JS.toggle_attribute({"aria-label", gettext("Close menu"), gettext("Open menu")},
+              to: "#mobile-menu-toggle"
+            )
           }
           class="topbar-action btn btn-ghost btn-sm btn-square lg:hidden"
           aria-label={gettext("Open menu")}
+          aria-controls="sidebar"
+          aria-expanded="false"
         >
-          <.icon name="icon-[tabler--menu-2]" class="size-5" />
+          <.icon id="mobile-menu-open-icon" name="icon-[tabler--menu-2]" class="size-5" />
+          <.icon id="mobile-menu-close-icon" name="icon-[tabler--x]" class="hidden size-5" />
         </button>
       </div>
 
-      <div class="absolute left-1/2 z-30 w-[min(34rem,calc(100%-8rem))] -translate-x-1/2 xl:w-[36rem]">
+      <div class="absolute left-1/2 z-30 w-[min(15rem,calc(100%-9rem))] -translate-x-1/2 sm:w-[min(34rem,calc(100%-8rem))] xl:w-[36rem]">
         <.live_component
           module={KonevoWeb.GlobalSearchComponent}
           id="global-search"

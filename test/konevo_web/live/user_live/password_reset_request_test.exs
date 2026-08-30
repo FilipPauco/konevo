@@ -27,7 +27,10 @@ defmodule KonevoWeb.UserLive.PasswordResetRequestTest do
     assert_email_sent(fn email ->
       email.subject == "Reset your password" and
         Enum.any?(email.to, fn {_name, address} -> address == user.email end) and
-        email.text_body =~ "/users/reset-password/"
+        email.text_body =~ "/users/reset-password/" and
+        email.html_body =~ "Reset your password" and
+        email.html_body =~ "Reset password" and
+        email.html_body =~ "/images/logo-navbar-v2.png"
     end)
   end
 end

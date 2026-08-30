@@ -137,7 +137,8 @@ defmodule KonevoWeb.CompaniesLive.FormComponent do
   defp save_company(socket, :edit, params) do
     case Companies.update_company(socket.assigns.current_scope, socket.assigns.company, params) do
       {:ok, company} ->
-        notify_and_patch(socket, company, :updated)
+        notify_parent({:saved, company, :updated})
+        {:noreply, socket}
 
       {:error, %Ecto.Changeset{} = changeset} ->
         {:noreply, assign(socket, :form, to_form(changeset, action: :validate))}
@@ -150,7 +151,8 @@ defmodule KonevoWeb.CompaniesLive.FormComponent do
   defp save_company(socket, :new, params) do
     case Companies.create_company(socket.assigns.current_scope, params) do
       {:ok, company} ->
-        notify_and_patch(socket, company, :created)
+        notify_parent({:saved, company, :created})
+        {:noreply, push_patch(socket, to: socket.assigns.patch)}
 
       {:error, %Ecto.Changeset{} = changeset} ->
         {:noreply, assign(socket, :form, to_form(changeset, action: :validate))}
@@ -160,8 +162,5 @@ defmodule KonevoWeb.CompaniesLive.FormComponent do
     end
   end
 
-  defp notify_and_patch(socket, company, action) do
-    send(self(), {__MODULE__, {:saved, company, action}})
-    {:noreply, push_patch(socket, to: socket.assigns.patch)}
-  end
+  defp notify_parent(message), do: send(self(), {__MODULE__, message})
 end

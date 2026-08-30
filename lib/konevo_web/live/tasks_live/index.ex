@@ -203,7 +203,7 @@ defmodule KonevoWeb.TasksLive.Index do
     socket = ensure_task_types_loaded(socket)
 
     assign(socket,
-      page_title: gettext("New Task"),
+      page_title: gettext("Tasks"),
       task: task_from_params(params, parent_task_id),
       parent_task_id: parent_task_id
     )
@@ -927,6 +927,17 @@ defmodule KonevoWeb.TasksLive.Index do
           assigns.overdue
         )
       )
+      |> assign(
+        :filter_controls_active?,
+        assigns.archive_filter != :active or assigns.statuses != [] or assigns.priorities != [] or
+          assigns.due_from != "" or assigns.due_to != "" or assigns.overdue
+      )
+      |> assign(
+        :filter_controls_count,
+        if(assigns.archive_filter != :active, do: 1, else: 0) + length(assigns.statuses) +
+          length(assigns.priorities) + if(assigns.due_from != "", do: 1, else: 0) +
+          if(assigns.due_to != "", do: 1, else: 0) + if(assigns.overdue, do: 1, else: 0)
+      )
 
     ~H"""
     <Layouts.app flash={@flash} current_scope={@current_scope} current_path={@current_path}>
@@ -939,7 +950,7 @@ defmodule KonevoWeb.TasksLive.Index do
         <%!-- Toolbar --%>
         <div class="mb-4 flex flex-wrap items-center gap-2">
           <%!-- Search --%>
-          <div class="relative w-52 shrink-0">
+          <div class="relative w-full shrink-0 sm:w-52">
             <span class="icon-[tabler--search] pointer-events-none absolute left-2.5 top-1/2 z-10 size-3.5 -translate-y-1/2 text-base-content/40" />
             <form phx-change="search" phx-submit="search" id="task-search-form">
               <input
@@ -967,52 +978,76 @@ defmodule KonevoWeb.TasksLive.Index do
             </button>
           </div>
 
-          <.archive_filter_dropdown
-            id="tasks-archive-filter"
-            selected={@archive_filter}
-            options={archive_filter_options()}
-          />
+          <div class="hidden sm:block">
+            <.archive_filter_dropdown
+              id="tasks-archive-filter"
+              selected={@archive_filter}
+              options={archive_filter_options()}
+            />
+          </div>
           <%!-- Filter dropdowns --%>
           <%!-- Mobile filter toggle --%>
-          <button
-            type="button"
-            class={[
-              "btn btn-sm gap-1.5 border select-none sm:hidden",
-              if(@has_active_filters,
-                do: "border-primary/50 bg-primary/10 text-primary hover:bg-primary/15",
-                else:
-                  "border-base-content/20 bg-base-100 text-base-content hover:border-base-content/30"
-              )
-            ]}
-            phx-click={
-              JS.toggle(
-                to: "#tasks-filter-panel",
-                display: "flex",
-                in:
-                  {"transition ease-out duration-200", "opacity-0 -translate-y-1",
-                   "opacity-100 translate-y-0"},
-                out:
-                  {"transition ease-in duration-150", "opacity-100 translate-y-0",
-                   "opacity-0 -translate-y-1"}
-              )
-              |> JS.toggle_class("rotate-180", to: "#tasks-filter-chevron")
-            }
-          >
-            <span class="icon-[tabler--adjustments-horizontal] size-3.5" />
-            {gettext("Filters")}
-            <span
-              :if={@has_active_filters}
-              class="size-2 rounded-full bg-primary"
-            />
-            <span
-              id="tasks-filter-chevron"
-              class="icon-[tabler--chevron-down] size-3.5 opacity-50 transition-transform duration-200"
-            />
-          </button>
+          <div class="flex items-center gap-2 sm:hidden">
+            <button
+              type="button"
+              class={[
+                "btn btn-sm gap-1.5 border select-none",
+                if(@filter_controls_active?,
+                  do: "border-primary/50 bg-primary/10 text-primary hover:bg-primary/15",
+                  else:
+                    "border-base-content/20 bg-base-100 text-base-content hover:border-base-content/30"
+                )
+              ]}
+              phx-click={
+                JS.toggle(
+                  to: "#tasks-filter-panel",
+                  display: "flex",
+                  in:
+                    {"transition ease-out duration-200", "opacity-0 -translate-y-1",
+                     "opacity-100 translate-y-0"},
+                  out:
+                    {"transition ease-in duration-150", "opacity-100 translate-y-0",
+                     "opacity-0 -translate-y-1"}
+                )
+                |> JS.toggle_class("rotate-180", to: "#tasks-filter-chevron")
+              }
+            >
+              <span class="icon-[tabler--adjustments-horizontal] size-3.5" />
+              {gettext("Filters")}
+              <span
+                :if={@filter_controls_active?}
+                class="flex size-4 items-center justify-center rounded-full bg-primary text-[10px] font-bold text-primary-content"
+              >
+                {@filter_controls_count}
+              </span>
+              <span
+                id="tasks-filter-chevron"
+                class="icon-[tabler--chevron-down] size-3.5 opacity-50 transition-transform duration-200"
+              />
+            </button>
+            <button
+              :if={@filter_controls_active?}
+              id="tasks-clear-filters-mobile"
+              phx-click="clear_filters"
+              type="button"
+              aria-label={gettext("Clear filters")}
+              class="btn btn-sm btn-square border border-base-content/20 bg-base-100 text-base-content/60 transition-all hover:border-base-content/30 hover:text-base-content"
+            >
+              <.icon name="icon-[tabler--x]" class="size-3.5" />
+            </button>
+          </div>
           <div
             id="tasks-filter-panel"
-            class="hidden flex-wrap items-center gap-2 sm:flex"
+            class="hidden w-full flex-wrap items-center gap-2 rounded-xl border border-secondary/35 bg-secondary/10 p-3 sm:w-auto sm:rounded-none sm:border-0 sm:bg-transparent sm:p-0 sm:flex"
           >
+            <div class="sm:hidden">
+              <.archive_filter_dropdown
+                id="tasks-archive-filter-mobile"
+                selected={@archive_filter}
+                options={archive_filter_options()}
+              />
+            </div>
+
             <%!-- Status filter --%>
             <div class="relative" id="task-status-filter" phx-hook="FilterPanel">
               <button
@@ -1148,14 +1183,19 @@ defmodule KonevoWeb.TasksLive.Index do
               <span class="icon-[tabler--clock-exclamation] size-3.5" /> {gettext("Overdue")}
             </button>
             <%!-- Clear all filters --%>
-            <button
+            <div
               :if={@has_active_filters}
-              phx-click="clear_filters"
-              type="button"
-              class="btn btn-sm gap-1.5 border border-base-content/20 bg-base-100 text-base-content/60 transition-all hover:border-base-content/30 hover:text-base-content"
+              class="hidden border-l border-base-content/15 pl-2 sm:block"
             >
-              <span class="icon-[tabler--x] size-3" /> {gettext("Clear filters")}
-            </button>
+              <button
+                id="tasks-clear-filters"
+                phx-click="clear_filters"
+                type="button"
+                class="btn btn-sm gap-1.5 border border-base-content/20 bg-base-100 text-base-content/60 transition-all hover:border-base-content/30 hover:text-base-content"
+              >
+                <.icon name="icon-[tabler--x]" class="size-3" /> {gettext("Clear filters")}
+              </button>
+            </div>
           </div>
           <%!-- Filter mode badge --%>
           <div
@@ -1169,15 +1209,15 @@ defmodule KonevoWeb.TasksLive.Index do
         <div
           :if={@loading}
           id="tasks-loading"
-          class="overflow-x-auto rounded-xl border border-base-content/20 bg-base-100"
+          class="tasks-mobile-container overflow-x-auto rounded-xl border border-base-content/20 bg-base-100"
         >
-          <table class="table w-full min-w-6xl table-fixed">
+          <table class="tasks-responsive-table table w-full min-w-6xl table-fixed">
             <.tasks_table_header filter_mode={@filter_mode} sort_by={@sort_by} sort_dir={@sort_dir} />
             <tbody class="divide-y divide-base-content/8">
               <tr
                 :for={row <- 1..7}
                 id={"task-skeleton-#{row}"}
-                class="divide-x divide-base-content/8"
+                class="task-mobile-skeleton divide-x divide-base-content/8"
               >
                 <td class="px-4 py-3"><div class="skeleton h-4 w-56 rounded-md" /></td>
 
@@ -1204,9 +1244,9 @@ defmodule KonevoWeb.TasksLive.Index do
           :if={!@loading}
           id="tasks-table"
           phx-hook="NameTip"
-          class="overflow-x-auto rounded-xl border border-base-content/20 bg-base-100 shadow-sm"
+          class="tasks-mobile-container overflow-x-auto rounded-xl border border-base-content/20 bg-base-100 shadow-sm"
         >
-          <table class="table w-full min-w-6xl table-fixed">
+          <table class="tasks-responsive-table table w-full min-w-6xl table-fixed">
             <.tasks_table_header filter_mode={@filter_mode} sort_by={@sort_by} sort_dir={@sort_dir} />
             <tbody id="tasks" phx-update="stream" class="divide-y divide-base-content/8">
               <tr id="tasks-empty" class="hidden only:table-row">
@@ -1241,7 +1281,10 @@ defmodule KonevoWeb.TasksLive.Index do
                     )
                   end
                 }
-                class="task-tree-row group divide-x divide-base-content/8 transition-colors hover:bg-base-200/40"
+                class={[
+                  "task-tree-row task-mobile-card group divide-x divide-base-content/8 transition-colors hover:bg-base-200/40",
+                  loading_children_row?(task) && "task-mobile-skeleton"
+                ]}
               >
                 <%= if loading_children_row?(task) do %>
                   <td class="px-4 py-3">
@@ -1272,10 +1315,10 @@ defmodule KonevoWeb.TasksLive.Index do
 
                   <td class="px-4 py-3"><div class="skeleton h-4 w-24 rounded-md" /></td>
                 <% else %>
-                  <td class="relative overflow-hidden px-3 py-2.5">
+                  <td class="task-mobile-card-title relative overflow-hidden px-3 py-2.5">
                     <div
-                      class="flex min-w-0 items-center gap-2"
-                      style={"padding-left: #{task.depth * 1.25}rem"}
+                      class="task-mobile-title-content flex min-w-0 items-center gap-2"
+                      style={"--task-depth: #{task.depth}; padding-left: calc(var(--task-depth) * 1.25rem)"}
                     >
                       <button
                         :if={task.has_children?}
@@ -1417,11 +1460,24 @@ defmodule KonevoWeb.TasksLive.Index do
                     </div>
                   </td>
 
-                  <td class="px-3 py-2.5"><.task_contact_cell contact={task.contact} /></td>
+                  <td class={[
+                    "task-mobile-field task-mobile-contact px-3 py-2.5",
+                    is_nil(task.contact) && "task-mobile-empty"
+                  ]}>
+                    <span class="task-mobile-field-label">{gettext("Contact")}</span>
+                    <.task_contact_cell contact={task.contact} />
+                  </td>
 
-                  <td class="px-3 py-2.5"><.task_deal_cell deal={task.deal} /></td>
+                  <td class={[
+                    "task-mobile-field task-mobile-deal px-3 py-2.5",
+                    is_nil(task.deal) && "task-mobile-empty"
+                  ]}>
+                    <span class="task-mobile-field-label">{gettext("Deal")}</span>
+                    <.task_deal_cell deal={task.deal} />
+                  </td>
 
-                  <td class="px-3 py-2.5">
+                  <td class="task-mobile-field task-mobile-status px-3 py-2.5">
+                    <span class="task-mobile-field-label">{gettext("Status")}</span>
                     <.status_pill
                       task_id={task.id}
                       status={task_status(task)}
@@ -1430,16 +1486,20 @@ defmodule KonevoWeb.TasksLive.Index do
                     />
                   </td>
 
-                  <td class="px-3 py-2.5">
+                  <td class="task-mobile-field task-mobile-priority px-3 py-2.5">
+                    <span class="task-mobile-field-label">{gettext("Priority")}</span>
                     <.priority_pill
                       task_id={task.id}
                       priority={task.priority}
-                      muted={task_status_derived?(task)}
                     />
                   </td>
 
-                  <td class="px-3 py-2.5 text-sm text-base-content/60">
-                    {format_due_date(task.due_date)}
+                  <td class={[
+                    "task-mobile-field task-mobile-due px-3 py-2.5 text-sm text-base-content/60",
+                    is_nil(task.due_date) && "task-mobile-empty"
+                  ]}>
+                    <span class="task-mobile-field-label">{gettext("Due")}</span>
+                    <span>{format_due_date(task.due_date)}</span>
                   </td>
                 <% end %>
               </tr>
@@ -1448,7 +1508,7 @@ defmodule KonevoWeb.TasksLive.Index do
         </div>
         <%!-- Footer: count + pagination (filter mode only) --%>
         <div
-          :if={@filter_mode and !@loading}
+          :if={@filter_mode and !@loading and @total > 0}
           id="tasks-footer"
           class="mt-6 flex flex-wrap items-center justify-between gap-3"
         >
@@ -1718,11 +1778,11 @@ defmodule KonevoWeb.TasksLive.Index do
   defp task_status_dot_class(:cancelled), do: "bg-slate-400"
   defp task_status_dot_class(_), do: "bg-base-300"
 
-  defp priority_color(:low), do: "#64748b"
+  defp priority_color(:low), do: "#94a3b8"
   defp priority_color(:normal), do: "#3b82f6"
   defp priority_color(:high), do: "#f97316"
   defp priority_color(:urgent), do: "#ef4444"
-  defp priority_color(_), do: "#64748b"
+  defp priority_color(_), do: "#94a3b8"
 
   defp task_type_icon(%{task_type: %{is_parent_only: true}}), do: "icon-[tabler--crown]"
   defp task_type_icon(%{task_type: %{name: "Epic"}}), do: "icon-[tabler--crown]"
@@ -2029,11 +2089,10 @@ defmodule KonevoWeb.TasksLive.Index do
   attr(:task_id, :string, required: true)
   attr(:priority, :atom, required: true)
   attr(:id_suffix, :string, default: "")
-  attr(:muted, :boolean, default: false)
 
   defp priority_pill(assigns) do
     all_priorities = [
-      {:low, "#64748b", "icon-[tabler--flag-filled]", gettext("Low")},
+      {:low, "#94a3b8", "icon-[tabler--flag-filled]", gettext("Low")},
       {:normal, "#3b82f6", "icon-[tabler--flag-filled]", gettext("Normal")},
       {:high, "#f97316", "icon-[tabler--flag-filled]", gettext("High")},
       {:urgent, "#ef4444", "icon-[tabler--flag-filled]", gettext("Urgent")}
@@ -2042,7 +2101,7 @@ defmodule KonevoWeb.TasksLive.Index do
     {color, icon, label} =
       all_priorities
       |> Enum.find(
-        {:unknown, "#64748b", "icon-[tabler--minus]", Phoenix.Naming.humanize(assigns.priority)},
+        {:unknown, "#94a3b8", "icon-[tabler--minus]", Phoenix.Naming.humanize(assigns.priority)},
         fn {p, _, _, _} -> p == assigns.priority end
       )
       |> then(fn {_, c, i, l} -> {c, i, l} end)
@@ -2061,11 +2120,8 @@ defmodule KonevoWeb.TasksLive.Index do
         type="button"
         data-toggle
         aria-label={gettext("Change priority")}
-        class={[
-          "inline-flex w-full cursor-pointer items-center gap-1 rounded-md border px-2.5 py-1 text-xs font-medium transition-opacity hover:opacity-80",
-          @muted && "bg-base-100/60"
-        ]}
-        style={if(@muted, do: pill_style_muted(@color), else: pill_style(@color))}
+        class="inline-flex w-full cursor-pointer items-center gap-1 rounded-md border px-2.5 py-1 text-xs font-medium transition-opacity hover:opacity-80"
+        style={pill_style(@color)}
       >
         <span class={[@icon, "size-3.5 shrink-0"]} /> {@label}
         <span class="icon-[tabler--chevron-down] ml-auto size-3.5 shrink-0 opacity-60" />

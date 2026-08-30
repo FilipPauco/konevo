@@ -235,6 +235,28 @@ defmodule Konevo.Contacts do
   end
 
   @doc """
+  Finds an existing contact by email or creates a lead contact from that email.
+  """
+  def find_or_create_by_email(scope, email) when is_binary(email) do
+    with :ok <- Bodyguard.permit(Policy, :read, scope.user, %{org: scope.org}),
+         {:ok, email} <- normalize_contact_email(email) do
+      case contact_by_email(scope, email) do
+        %Contact{} = contact ->
+          {:ok, contact}
+
+        nil ->
+          create_contact(scope, %{
+            email: email,
+            first_name: first_name_from_email(email),
+            status: :lead
+          })
+      end
+    end
+  end
+
+  def find_or_create_by_email(_scope, _email), do: {:error, :invalid_email}
+
+  @doc """
   Updates a contact.
   """
   def update_contact(scope, %Contact{} = contact, attrs) do
@@ -301,6 +323,32 @@ defmodule Konevo.Contacts do
 
   defp contact_base_query(%{user: %{id: user_id}}) do
     from c in Contact, where: c.user_id == ^user_id
+  end
+
+  defp contact_by_email(scope, email) do
+    scope
+    |> contact_base_query()
+    |> where([contact], fragment("lower(?)", contact.email) == ^email)
+    |> order_by([contact], asc: contact.id)
+    |> limit(1)
+    |> Repo.one()
+  end
+
+  defp normalize_contact_email(email) do
+    email = email |> String.trim() |> String.downcase()
+
+    if Regex.match?(~r/^[^@,;\s]+@[^@,;\s]+$/, email),
+      do: {:ok, email},
+      else: {:error, :invalid_email}
+  end
+
+  defp first_name_from_email(email) do
+    email
+    |> String.split("@", parts: 2)
+    |> List.first()
+    |> String.split([".", "_", "-"], trim: true)
+    |> List.first()
+    |> Phoenix.Naming.humanize()
   end
 
   defp get_contact_by_slug(scope, slug) do

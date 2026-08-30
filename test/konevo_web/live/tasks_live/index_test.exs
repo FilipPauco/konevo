@@ -33,7 +33,22 @@ defmodule KonevoWeb.TasksLive.IndexTest do
       assert has_element?(view, "#task_status_live_select_component")
       assert has_element?(view, "#task_parent_task_id_live_select_component")
       assert has_element?(view, "#task_depends_on_task_id_live_select_component")
+      assert has_element?(view, "h1", "Tasks")
       assert has_element?(view, "#task_task_type_id_live_select_component input[value='Task']")
+      assert has_element?(view, "#task_task_type_id-select-icon[style*='color:']")
+      assert has_element?(view, "#task_priority-select-icon[style*='color:']")
+      assert has_element?(view, "#task_status-select-icon[style*='color:']")
+
+      for select_id <- [
+            "task_task_type_id_live_select_component",
+            "task_priority_live_select_component",
+            "task_status_live_select_component",
+            "task_parent_task_id_live_select_component",
+            "task_depends_on_task_id_live_select_component"
+          ] do
+        assert has_element?(view, "##{select_id} input.input")
+        refute has_element?(view, "##{select_id} input[class*='border-base-content/15']")
+      end
 
       _ = :sys.get_state(view.pid)
       assert has_element?(view, "#task_task_type_id_live_select_component input[value='Task']")
@@ -46,6 +61,84 @@ defmodule KonevoWeb.TasksLive.IndexTest do
       |> render_change()
 
       assert has_element?(view, "#task_task_type_id_live_select_component input[value='Task']")
+    end
+
+    test "includes Epics as parents but excludes them from dependencies", %{
+      conn: conn,
+      org: org,
+      scope: scope
+    } do
+      task_type =
+        insert(:task_type,
+          organization: org,
+          name: "Relationship Task",
+          is_parent_only: false
+        )
+
+      epic_type =
+        insert(:task_type,
+          organization: org,
+          name: "Relationship Epic",
+          is_parent_only: true
+        )
+
+      task = task_fixture(scope, %{title: "Eligible relationship task", task_type: task_type})
+      epic = task_fixture(scope, %{title: "Excluded relationship epic", task_type: epic_type})
+
+      {:ok, view, _html} = live(org_conn(conn, org), ~p"/tasks/new")
+      _ = :sys.get_state(view.pid)
+
+      view
+      |> element("#task_parent_task_id_text_input")
+      |> render_click()
+
+      assert has_element?(
+               view,
+               "#task_parent_task_id_live_select_component [data-idx]",
+               task.title
+             )
+
+      assert has_element?(
+               view,
+               "#task_parent_task_id_live_select_component [data-idx]",
+               epic.title
+             )
+
+      assert has_element?(
+               view,
+               "#task_parent_task_id_live_select_component [class~='icon-[tabler--menu-2]']"
+             )
+
+      assert has_element?(
+               view,
+               "#task_parent_task_id_live_select_component [class~='icon-[tabler--crown]']"
+             )
+
+      assert has_element?(
+               view,
+               "#task_parent_task_id_live_select_component [class~='icon-[tabler--menu-2]']"
+             )
+
+      view
+      |> element("#task_depends_on_task_id_text_input")
+      |> render_click()
+
+      assert has_element?(
+               view,
+               "#task_depends_on_task_id_live_select_component [data-idx]",
+               task.title
+             )
+
+      refute has_element?(
+               view,
+               "#task_depends_on_task_id_live_select_component [data-idx]",
+               epic.title
+             )
+
+      assert has_element?(
+               view,
+               "#task_depends_on_task_id_live_select_component [class~='icon-[tabler--menu-2]']"
+             )
     end
 
     test "opens a subtask loading row immediately before children render", %{
@@ -126,6 +219,18 @@ defmodule KonevoWeb.TasksLive.IndexTest do
       refute has_element?(view, "#tasks-#{open_task.id}")
     end
 
+    test "renders task rows with mobile card structure", %{conn: conn, org: org, scope: scope} do
+      task = task_fixture(scope, %{title: "Mobile task card"})
+
+      {:ok, view, _html} = live(org_conn(conn, org), ~p"/tasks")
+      _ = :sys.get_state(view.pid)
+
+      assert has_element?(view, "#tasks-#{task.id}.task-mobile-card")
+      assert has_element?(view, "#tasks-#{task.id} .task-mobile-card-title")
+      assert has_element?(view, "#tasks-#{task.id} .task-mobile-status")
+      assert has_element?(view, "#tasks-#{task.id} .task-mobile-priority")
+    end
+
     test "completes a task from the task list", %{conn: conn, org: org, scope: scope} do
       task = task_fixture(scope, %{title: "Complete me"})
 
@@ -196,6 +301,20 @@ defmodule KonevoWeb.TasksLive.IndexTest do
       assert has_element?(view, "#tasks-#{miss.id}")
     end
 
+    test "hides the footer when filters return no tasks", %{conn: conn, org: org, scope: scope} do
+      _task = task_fixture(scope, %{title: "Existing task"})
+
+      {:ok, view, _html} = live(org_conn(conn, org), ~p"/tasks")
+      _ = :sys.get_state(view.pid)
+
+      view
+      |> form("#task-search-form", q: "No matching task")
+      |> render_submit()
+
+      assert has_element?(view, "#tasks-empty")
+      refute has_element?(view, "#tasks-footer")
+    end
+
     test "archives and restores a task from the task list", %{conn: conn, org: org, scope: scope} do
       task = task_fixture(scope, %{title: "Archive task"})
 
@@ -222,11 +341,41 @@ defmodule KonevoWeb.TasksLive.IndexTest do
       {:ok, view, _html} = live(org_conn(conn, org), ~p"/tasks/#{task.id}")
       _ = render_async(view, 1_000)
 
+      assert has_element?(view, "#task-due-date-#{task.id}.pl-8")
+      assert has_element?(view, "#task-due-date-#{task.id}[class~='border-base-content/40']")
+      assert has_element?(view, "#task-due-date-icon-#{task.id}")
+      assert has_element?(view, "#status-pill-#{task.id}-drawer > button.h-8.w-full")
+      assert has_element?(view, "#priority-pill-#{task.id}-drawer button.h-8")
+
+      assert has_element?(
+               view,
+               "#priority-pill-#{task.id}-drawer button[style*='background-color']"
+             )
+
       view
       |> form("#task-due-date-form-#{task.id}", task: %{due_date: "2026-08-25T14:30"})
       |> render_change()
 
       assert Tasks.get_task!(scope, task.id).due_date == ~U[2026-08-25 14:30:00Z]
+    end
+
+    test "renames a task from the drawer", %{conn: conn, org: org, scope: scope} do
+      task = task_fixture(scope, %{title: "Original task title"})
+
+      {:ok, view, _html} = live(org_conn(conn, org), ~p"/tasks/#{task.id}")
+      _ = render_async(view, 1_000)
+
+      view |> element("#edit-task-title-#{task.id}") |> render_click()
+
+      assert has_element?(view, "#task-title-edit-form-#{task.id}")
+
+      view
+      |> form("#task-title-edit-form-#{task.id}", task: %{title: "Renamed task title"})
+      |> render_submit()
+
+      assert Tasks.get_task!(scope, task.id).title == "Renamed task title"
+      refute has_element?(view, "#task-title-edit-form-#{task.id}")
+      assert has_element?(view, "#task-drawer-title-#{task.id}")
     end
   end
 end

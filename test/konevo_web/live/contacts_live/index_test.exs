@@ -5,7 +5,6 @@ defmodule KonevoWeb.ContactsLive.IndexTest do
   import Konevo.Factory
   import Konevo.ContactsFixtures
 
-  alias Konevo.Accounts
   alias Konevo.Accounts.Scope
   alias Konevo.Contacts
   alias Konevo.Repo
@@ -40,8 +39,19 @@ defmodule KonevoWeb.ContactsLive.IndexTest do
 
       _ = render_async(lv)
       assert has_element?(lv, "#contacts-empty")
-      assert has_element?(lv, "#contacts-footer")
+      refute has_element?(lv, "#contacts-footer")
       refute has_element?(lv, "#uploaded-files-table")
+    end
+
+    test "uses the card surface when cards are selected", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/contacts")
+      _ = render_async(view)
+
+      view
+      |> element("button[phx-click='set_view_mode'][phx-value-mode='card']")
+      |> render_click()
+
+      assert has_element?(view, "#contacts-cards-empty.bg-base-100")
     end
 
     test "shows global search results from the topbar", %{conn: conn, scope: scope} do
@@ -114,14 +124,16 @@ defmodule KonevoWeb.ContactsLive.IndexTest do
     test "shows LinkedIn icon in cards when contact has a LinkedIn URL", %{
       conn: conn,
       scope: scope,
-      user: user
+      user: _user
     } do
-      {:ok, _user} = Accounts.update_user_view_preferences(user, %{contacts_view_mode: "card"})
-
       linkedin_url = "https://www.linkedin.com/in/card-contact"
       contact = contact_fixture(scope, %{linkedin_url: linkedin_url})
       {:ok, view, _html} = live(conn, ~p"/contacts")
       _ = render_async(view)
+
+      view
+      |> element("button[phx-click='set_view_mode'][phx-value-mode='card']")
+      |> render_click()
 
       assert has_element?(
                view,
@@ -132,15 +144,30 @@ defmodule KonevoWeb.ContactsLive.IndexTest do
     test "hides LinkedIn icon in cards when contact LinkedIn URL is blank", %{
       conn: conn,
       scope: scope,
-      user: user
+      user: _user
     } do
-      {:ok, _user} = Accounts.update_user_view_preferences(user, %{contacts_view_mode: "card"})
-
       contact = contact_fixture(scope, %{linkedin_url: "  "})
       {:ok, view, _html} = live(conn, ~p"/contacts")
       _ = render_async(view)
 
+      view
+      |> element("button[phx-click='set_view_mode'][phx-value-mode='card']")
+      |> render_click()
+
       refute has_element?(view, "#contacts-cards #contact-card-linkedin-#{contact.id}")
+    end
+  end
+
+  describe "delete" do
+    test "owner can delete a contact and sees a success toast", %{conn: conn, scope: scope} do
+      contact = contact_fixture(scope, %{first_name: "DeleteFromIndex"})
+      {:ok, view, _html} = live(conn, ~p"/contacts")
+      _ = render_async(view)
+
+      render_hook(view, "delete", %{id: contact.id})
+
+      assert has_element?(view, "#flash-success", "Contact deleted")
+      assert_raise Ecto.NoResultsError, fn -> Contacts.get_contact!(scope, contact.id) end
     end
   end
 
@@ -154,6 +181,20 @@ defmodule KonevoWeb.ContactsLive.IndexTest do
       _ = render_async(lv)
       assert has_element?(lv, "#contact-form")
       assert has_element?(lv, "#contact-form input[name='contact[linkedin_url]']")
+
+      for status <- ~w(lead prospect customer churned) do
+        assert has_element?(
+                 lv,
+                 "label[for='status-opt-#{status}'] span[class~='peer-checked:border-primary']"
+               )
+
+        assert has_element?(
+                 lv,
+                 "label[for='status-opt-#{status}'] span[class~='border-base-content/40']"
+               )
+      end
+
+      assert has_element?(lv, "label[for='status-opt-lead'] span.bg-teal-400")
     end
 
     test "company options are preloaded when form opens", %{
@@ -167,6 +208,7 @@ defmodule KonevoWeb.ContactsLive.IndexTest do
 
       # The live_select component is rendered
       assert has_element?(lv, "#contact_company_id_live_select_component")
+      assert has_element?(lv, "#contact_company_id_text_input.h-10")
 
       # Clicking the text input opens the dropdown — options are already preloaded
       lv |> element("#contact_company_id_text_input") |> render_click()
@@ -248,6 +290,26 @@ defmodule KonevoWeb.ContactsLive.IndexTest do
 
       assert html =~ "Updated"
     end
+
+    test "preserves filters when editing a contact", %{conn: conn, scope: scope} do
+      contact = contact_fixture(scope, %{first_name: "Filtered edit"})
+      {:ok, _contact} = Contacts.archive_contact(scope, contact)
+
+      {:ok, view, _html} = live(conn, ~p"/contacts?archived=archived")
+      _ = render_async(view)
+
+      view
+      |> element("a[href='/contacts/#{contact.slug}/edit/inline?archived=archived']")
+      |> render_click()
+
+      assert_patch(view, ~p"/contacts/#{contact}/edit/inline?archived=archived")
+
+      view
+      |> form("#contact-form", contact: %{first_name: "Filtered update"})
+      |> render_submit()
+
+      assert_patch(view, ~p"/contacts?archived=archived")
+    end
   end
 
   # ---------------------------------------------------------------------------
@@ -266,6 +328,14 @@ defmodule KonevoWeb.ContactsLive.IndexTest do
 
       assert has_element?(lv, "#contacts a[href='/contacts/#{alice.slug}']")
       refute has_element?(lv, "#contacts a[href='/contacts/#{bob.slug}']")
+      assert has_element?(lv, "#contacts-filter-panel #contacts-clear-filters")
+      assert has_element?(lv, "#contacts-archive-filter-mobile")
+
+      lv |> element("#contacts-clear-filters") |> render_click()
+      _ = render_async(lv)
+
+      assert has_element?(lv, "#contacts a[href='/contacts/#{bob.slug}']")
+      refute has_element?(lv, "#contacts-clear-filters")
     end
   end
 

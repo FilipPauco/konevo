@@ -53,26 +53,41 @@ tags. The workflow does not SSH to the production server.
 
 ## 4. Prepare the server
 
-Follow [DOCKER.md](DOCKER.md) to secure the server, install Docker, configure
-DNS, and create the production .env file. Then prepare the deploy account:
+Use a Linux server with Docker Engine and the Docker Compose plugin installed.
+Point your domain at the server, allow inbound TCP ports 80 and 443, and secure
+SSH with an administrator key. Install the deployer's small dependencies:
+
+~~~shell
+sudo apt update && sudo apt install -y curl jq git
+~~~
+
+Then prepare the deploy account and clone the public repository once. Do not
+download individual Compose files with `curl`.
 
 ~~~shell
 sudo adduser --system --group --home /opt/konevo --shell /usr/sbin/nologin konevo-deploy
 sudo install -d -o konevo-deploy -g konevo-deploy /opt/konevo/app
-sudo -u konevo-deploy git clone https://github.com/<owner>/<repository>.git /opt/konevo/app
+sudo -u konevo-deploy git clone https://github.com/FilipPauco/konevo.git /opt/konevo/app
 sudo install -d -o 65534 -g 65534 -m 750 /opt/konevo/uploads
 sudo install -d -o konevo-deploy -g konevo-deploy -m 750 /var/lib/konevo
 ~~~
 
-Create the production environment file manually. It is the only source of app
-secrets and must remain outside Git:
+Create the production environment file from the committed placeholder file. It
+stores app settings and secrets and must remain outside Git:
 
 ~~~shell
-sudo install -o root -g konevo-deploy -m 640 /dev/null /opt/konevo/app/.env
+sudo install -o root -g konevo-deploy -m 640 \
+  /opt/konevo/app/.env.example /opt/konevo/app/.env
 sudoedit /opt/konevo/app/.env
 ~~~
 
-Create the deployer's non-secret configuration:
+Set every placeholder, including `APP_IMAGE`, `PHX_HOST`, `SECRET_KEY_BASE`,
+`POSTGRES_PASSWORD`, the initial owner, Gmail OAuth, and email values.
+`APP_IMAGE` must be the immutable release to run, for example
+`ghcr.io/filippauco/konevo:vX.Y.Z`. The Compose file supplies the database URL,
+endpoint start flag, and persistent upload path.
+
+If you want automatic updates, create the deployer's non-secret configuration:
 
 ~~~shell
 sudo install -d -o root -g root -m 755 /etc/konevo
@@ -84,11 +99,78 @@ sudoedit /etc/konevo/deploy.env
 Set the public identifiers in /etc/konevo/deploy.env:
 
 ~~~dotenv
-APP_IMAGE_REPOSITORY=ghcr.io/<owner>/<repository>
-GITHUB_REPOSITORY=<owner>/<repository>
+APP_IMAGE_REPOSITORY=ghcr.io/filippauco/konevo
+GITHUB_REPOSITORY=FilipPauco/konevo
 ~~~
 
-Install and enable the deployer after a release image exists:
+If the optional Namecheap wildcard setup below is enabled, also add this so
+automatic deployments keep using the wildcard Caddy configuration:
+
+~~~dotenv
+COMPOSE_FILES=deploy/docker/compose.yaml:deploy/docker/compose.namecheap-wildcard.yaml
+~~~
+
+## 5. Start the first release
+
+After GitHub has published a release and its GHCR package is public, set
+`APP_IMAGE` in `/opt/konevo/app/.env` to its actual release tag. Then run:
+
+~~~shell
+sudo docker compose --env-file /opt/konevo/app/.env \
+  -f /opt/konevo/app/deploy/docker/compose.yaml up -d
+~~~
+
+The stack starts PostgreSQL, Konevo, and Caddy. Caddy requests and renews the
+TLS certificate for `PHX_HOST`.
+
+### Optional: serve every subdomain with Namecheap DNS
+
+Use this only when the application must serve arbitrary one-level subdomains,
+such as `tenant.konevo.net`. Keep `PHX_HOST` set to the base hostname (for
+example, `konevo.net`); do not set it to a wildcard. A wildcard certificate is
+required because the certificate for `konevo.net` does not cover its
+subdomains.
+
+In Namecheap, confirm that the domain uses Namecheap BasicDNS, PremiumDNS, or
+FreeDNS. Add an `A Record` with host `*` and the server's public IPv4 address.
+Enable Namecheap API access, add that same server IPv4 address to the API
+allowlist, and add these values to `/opt/konevo/app/.env`:
+
+~~~dotenv
+NAMECHEAP_API_KEY=replace-with-the-namecheap-api-key
+NAMECHEAP_API_USER=your-namecheap-username
+NAMECHEAP_CLIENT_IP=your-server-public-ipv4
+~~~
+
+Start the stack with the optional Compose override. It builds Caddy once with
+the Namecheap DNS module, then Caddy creates and renews the certificate for
+both `PHX_HOST` and `*.PHX_HOST`:
+
+~~~shell
+sudo docker compose --env-file /opt/konevo/app/.env \
+  -f /opt/konevo/app/deploy/docker/compose.yaml \
+  -f /opt/konevo/app/deploy/docker/compose.namecheap-wildcard.yaml up -d --build
+~~~
+
+This covers `tenant.konevo.net`, but not nested names such as
+`api.tenant.konevo.net`.
+
+Create the owner configured in `.env`. The command temporarily disables the web
+endpoint in this one-off process, so it does not compete for port 4000:
+
+~~~shell
+sudo docker compose --env-file /opt/konevo/app/.env \
+  -f /opt/konevo/app/deploy/docker/compose.yaml \
+  exec app env -u PHX_SERVER bin/konevo eval \
+  'IO.inspect(Konevo.Release.create_owner(), label: "Owner creation")'
+~~~
+
+`Owner creation: {:ok, ...}` confirms success. Re-running it is safe and may
+report that the owner already exists.
+
+## 6. Optional automatic updates
+
+Install and enable the deployer after the first release is running:
 
 ~~~shell
 sudo install -o root -g root -m 755 \
@@ -102,10 +184,11 @@ sudo systemctl enable --now konevo-deploy.timer
 sudo systemctl start konevo-deploy.service
 ~~~
 
-The server needs curl, jq, Git, Docker Engine, and the Docker Compose plugin.
-The timer checks at boot and then approximately every five minutes.
+The timer checks at boot and then approximately every five minutes. It queries
+the public GitHub Release API, pulls the matching immutable image, and restarts
+only the app service. GitHub does not connect to the server.
 
-## 5. Operations and rollback
+## 7. Operations and rollback
 
 - Back up PostgreSQL, /opt/konevo/uploads, and .env to an encrypted off-server
   destination; test restores.

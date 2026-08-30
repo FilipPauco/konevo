@@ -70,6 +70,21 @@ defmodule Konevo.Messaging.MessageDraft do
   end
 
   @doc false
+  def unapprove_changeset(draft) do
+    change(draft, status: :pending, approved_by_id: nil, approved_at: nil)
+  end
+
+  @doc false
+  def link_contact_and_unapprove_changeset(draft, contact_id) do
+    change(draft,
+      contact_id: contact_id,
+      status: :pending,
+      approved_by_id: nil,
+      approved_at: nil
+    )
+  end
+
+  @doc false
   def reject_changeset(draft) do
     cast(draft, %{status: :rejected}, [:status])
   end

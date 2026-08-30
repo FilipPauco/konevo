@@ -1,5 +1,6 @@
 defmodule KonevoWeb.SettingsLive do
   use KonevoWeb, :live_view
+  import LiveSelect
 
   alias Konevo.Accounts
   alias Konevo.Accounts.Organization
@@ -27,6 +28,7 @@ defmodule KonevoWeb.SettingsLive do
      socket
      |> assign(:page_title, gettext("Settings"))
      |> assign(:active_tab, "general")
+     |> assign(:settings_tab_form, settings_tab_form("general"))
      |> assign(:current_email, user.email)
      |> assign(:integrations, integrations)
      |> assign(:gmail_signature_importing_id, nil)
@@ -59,7 +61,12 @@ defmodule KonevoWeb.SettingsLive do
 
   @impl true
   def handle_params(params, _url, socket) do
-    {:noreply, assign(socket, :active_tab, settings_tab(Map.get(params, "tab")))}
+    tab = settings_tab(Map.get(params, "tab"))
+
+    {:noreply,
+     socket
+     |> assign(:active_tab, tab)
+     |> assign(:settings_tab_form, settings_tab_form(tab))}
   end
 
   @impl true
@@ -70,28 +77,52 @@ defmodule KonevoWeb.SettingsLive do
         <div class="space-y-6">
           <div class="rounded-xl border-2 border-base-content/15 bg-base-100 shadow-md shadow-base-content/5">
             <div class="px-4 pt-3 sm:px-5">
-              <%!-- Mobile tab select (visible only on small screens) --%>
-              <select
-                id="settings-tab-mobile-select"
-                phx-hook=".SettingsTabSelect"
-                phx-update="ignore"
-                class="select select-bordered select-sm w-full mb-3 sm:hidden"
+              <%!-- Mobile tab picker --%>
+              <.form
+                for={@settings_tab_form}
+                id="settings-tab-mobile-form"
+                phx-change="switch_tab"
+                class="mb-3 sm:hidden"
                 aria-label={gettext("Settings tab")}
               >
-                <option :for={tab <- tabs()} value={tab.id} selected={@active_tab == tab.id}>
-                  {tab.label}
-                </option>
-              </select>
-              <script :type={Phoenix.LiveView.ColocatedHook} name=".SettingsTabSelect">
-                export default {
-                  mounted() {
-                    this.el.addEventListener('change', (e) => {
-                      const tabId = e.target.value
-                      this.pushEvent('switch_tab', {tab: tabId})
-                    })
-                  }
-                }
-              </script>
+                <div class="group relative w-full">
+                  <span class="pointer-events-none absolute inset-y-0 left-3 z-20 flex items-center">
+                    <span class="flex size-6 items-center justify-center rounded-md border border-primary/15 bg-primary/10 text-primary/70">
+                      <.icon name={settings_tab_icon(@active_tab)} class="size-3.5" />
+                    </span>
+                  </span>
+                  <.live_select
+                    field={@settings_tab_form[:tab]}
+                    id="settings-tab-mobile-select"
+                    options={settings_tab_options()}
+                    value={@active_tab}
+                    placeholder={gettext("Search settings…")}
+                    style={:none}
+                    debounce={100}
+                    update_min_len={0}
+                    container_class="relative w-full"
+                    text_input_class="input h-10 w-full cursor-pointer pl-11 pr-10 text-sm font-medium placeholder:text-base-content/40 focus:cursor-text"
+                    dropdown_class="absolute left-0 top-[calc(100%+4px)] z-[300] max-h-60 w-full overflow-y-auto rounded-lg border border-base-content/10 bg-base-100 p-1 shadow-xl shadow-base-content/10"
+                    option_class="flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-sm"
+                    available_option_class="cursor-pointer rounded-md hover:bg-base-200/70"
+                    selected_option_class="cursor-pointer rounded-md bg-base-200/70 font-semibold"
+                    active_option_class="bg-base-200"
+                  >
+                    <:option :let={option}>
+                      <span class="flex size-6 shrink-0 items-center justify-center rounded-md border border-primary/15 bg-primary/10 text-primary/70">
+                        <.icon name={settings_tab_icon(option.value)} class="size-3.5" />
+                      </span>
+                      <span class="min-w-0 flex-1 truncate">{option.label}</span>
+                    </:option>
+                  </.live_select>
+                  <span class="pointer-events-none absolute inset-y-0 right-2 z-20 flex items-center text-base-content/45">
+                    <.icon
+                      name="icon-[tabler--chevron-down]"
+                      class="size-4 transition-transform duration-200 group-focus-within:rotate-180"
+                    />
+                  </span>
+                </div>
+              </.form>
               <%!-- Desktop tab strip (hidden on small screens) --%>
               <nav
                 id="settings-tabs"
@@ -195,12 +226,39 @@ defmodule KonevoWeb.SettingsLive do
   end
 
   @impl true
+  def handle_event("switch_tab", %{"settings_tab" => %{"tab" => tab}}, socket) do
+    switch_settings_tab(tab, socket)
+  end
+
   def handle_event("switch_tab", %{"tab" => tab}, socket) do
-    if Enum.any?(tabs(), &(&1.id == tab)) do
-      {:noreply, push_patch(socket, to: ~p"/settings?tab=#{tab}")}
-    else
-      {:noreply, socket}
-    end
+    switch_settings_tab(tab, socket)
+  end
+
+  def handle_event(
+        "live_select_change",
+        %{"id" => "settings-tab-mobile-select", "text" => text},
+        socket
+      ) do
+    send_update(LiveSelect.Component,
+      id: "settings-tab-mobile-select",
+      options: settings_tab_options(text)
+    )
+
+    {:noreply, socket}
+  end
+
+  def handle_event(
+        "live_select_change",
+        %{"id" => id, "text" => text},
+        socket
+      )
+      when id in [
+             "settings-ai-tone-select",
+             "settings-ai-language-select",
+             "settings-ai-response-length-select"
+           ] do
+    send_update(LiveSelect.Component, id: id, options: ai_preference_options(id, text))
+    {:noreply, socket}
   end
 
   def handle_event("update_approval_expiry", %{"approval_expiry" => params}, socket) do
@@ -260,30 +318,6 @@ defmodule KonevoWeb.SettingsLive do
     end
   end
 
-  def handle_event("update_view_prefs", %{"section" => section, "mode" => mode}, socket) do
-    user = socket.assigns.current_scope.user
-
-    attrs =
-      case section do
-        "contacts" -> %{contacts_view_mode: mode}
-        "companies" -> %{companies_view_mode: mode}
-        _ -> %{}
-      end
-
-    case Accounts.update_user_view_preferences(user, attrs) do
-      {:ok, updated_user} ->
-        updated_scope = %{socket.assigns.current_scope | user: updated_user}
-
-        {:noreply,
-         socket
-         |> assign(:current_scope, updated_scope)
-         |> put_flash(:success, gettext("Display preference updated"))}
-
-      {:error, _} ->
-        {:noreply, put_flash(socket, :error, gettext("Could not update preference"))}
-    end
-  end
-
   def handle_event("disconnect_integration", %{"id" => id}, socket) do
     scope = socket.assigns.current_scope
     id = String.to_integer(id)
@@ -322,6 +356,25 @@ defmodule KonevoWeb.SettingsLive do
      |> start_async({:gmail_signature_import, integration.id}, fn ->
        Inbox.import_gmail_primary_signature(scope, integration)
      end)}
+  rescue
+    Ecto.NoResultsError ->
+      {:noreply, put_flash(socket, :error, gettext("Integration not found"))}
+  end
+
+  def handle_event("clear_gmail_signature", %{"id" => id}, socket) do
+    scope = socket.assigns.current_scope
+    integration = Inbox.get_integration!(scope, String.to_integer(id))
+
+    case Inbox.update_integration_signature(scope, integration, %{signature_html: nil}) do
+      {:ok, updated} ->
+        {:noreply,
+         socket
+         |> assign(:integrations, replace_integration(socket.assigns.integrations, updated))
+         |> put_flash(:success, gettext("Gmail signature removed"))}
+
+      {:error, _reason} ->
+        {:noreply, put_flash(socket, :error, gettext("Could not remove Gmail signature"))}
+    end
   rescue
     Ecto.NoResultsError ->
       {:noreply, put_flash(socket, :error, gettext("Integration not found"))}
@@ -431,6 +484,14 @@ defmodule KonevoWeb.SettingsLive do
       end
     else
       {:noreply, require_recent_login(socket)}
+    end
+  end
+
+  defp switch_settings_tab(tab, socket) do
+    if Enum.any?(tabs(), &(&1.id == tab)) do
+      {:noreply, push_patch(socket, to: ~p"/settings?tab=#{tab}")}
+    else
+      {:noreply, socket}
     end
   end
 
@@ -618,6 +679,24 @@ defmodule KonevoWeb.SettingsLive do
       %{id: "ai", label: gettext("AI"), icon: "icon-[tabler--sparkles]"},
       %{id: "automation", label: gettext("Automation"), icon: "icon-[tabler--bolt]"}
     ]
+  end
+
+  defp settings_tab_form(tab), do: to_form(%{"tab" => tab}, as: "settings_tab")
+
+  defp settings_tab_options(query \\ "") do
+    normalized_query = query |> String.trim() |> String.downcase()
+
+    tabs()
+    |> Enum.filter(fn tab ->
+      normalized_query == "" or String.contains?(String.downcase(tab.label), normalized_query)
+    end)
+    |> Enum.map(fn tab -> %{label: tab.label, value: tab.id} end)
+  end
+
+  defp settings_tab_icon(tab_id) do
+    tabs()
+    |> Enum.find(%{icon: "icon-[tabler--settings]"}, &(&1.id == tab_id))
+    |> Map.fetch!(:icon)
   end
 
   defp settings_tab(tab) do
@@ -830,6 +909,32 @@ defmodule KonevoWeb.SettingsLive do
     """
   end
 
+  attr(:id, :string, required: true)
+  attr(:title, :string, required: true)
+  attr(:subtitle, :string, required: true)
+  attr(:icon, :string, required: true)
+
+  slot(:inner_block, required: true)
+
+  defp ai_preferences_section(assigns) do
+    ~H"""
+    <section class="overflow-hidden rounded-xl border border-base-content/10 bg-base-200/35 shadow-sm shadow-base-content/[0.02]">
+      <header class="flex items-start gap-3 border-b border-base-content/10 bg-base-100/55 px-4 py-3.5 sm:px-5">
+        <span class="flex size-9 shrink-0 items-center justify-center rounded-lg border border-primary/15 bg-primary/10 text-primary">
+          <.icon name={@icon} class="size-4.5" />
+        </span>
+        <div class="min-w-0 pt-0.5">
+          <h3 id={@id} class="text-sm font-semibold tracking-tight text-base-content">
+            {@title}
+          </h3>
+          <p class="mt-0.5 text-xs leading-5 text-base-content/60">{@subtitle}</p>
+        </div>
+      </header>
+      <div class="p-4 sm:p-5">{render_slot(@inner_block)}</div>
+    </section>
+    """
+  end
+
   attr(:integrations, :any, required: true)
   attr(:current_scope, :map, required: true)
 
@@ -936,7 +1041,7 @@ defmodule KonevoWeb.SettingsLive do
                     <button
                       type="button"
                       id={"disconnect-gmail-#{@gmail_integration.id}"}
-                      class="btn btn-error btn-danger btn-sm w-full gap-1.5"
+                      class="btn btn-error btn-sm w-full gap-1.5"
                       phx-click="disconnect_integration"
                       phx-value-id={@gmail_integration.id}
                       data-confirm={gettext("Disconnect Gmail? This will stop syncing emails.")}
@@ -958,7 +1063,7 @@ defmodule KonevoWeb.SettingsLive do
                   <.link
                     href={~p"/integrations/gmail/consent"}
                     id="connect-gmail-btn"
-                    class="btn btn-sm w-full gap-1.5 bg-base-content text-base-100 hover:bg-base-content/85"
+                    class="btn btn-primary btn-sm w-full gap-1.5"
                   >
                     <.icon name="icon-[tabler--plug-connected]" class="size-4" />
                     {gettext("Connect Gmail")}
@@ -1178,113 +1283,6 @@ defmodule KonevoWeb.SettingsLive do
             }
           }
         </script>
-      </.settings_section>
-
-      <%!-- Display preferences --%>
-      <.settings_section
-        title={gettext("Display")}
-        subtitle={gettext("Choose how contacts and companies are displayed.")}
-        icon="icon-[tabler--layout-grid]"
-      >
-        <div class="space-y-3">
-          <%!-- Contacts view mode --%>
-          <div class="flex items-center justify-between gap-4 rounded-xl border border-base-content/10 bg-base-200/30 p-4">
-            <div class="flex items-center gap-3">
-              <div class="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                <.icon name="icon-[tabler--users]" class="size-5" />
-              </div>
-              <div>
-                <p class="text-sm font-semibold text-base-content">{gettext("Contacts")}</p>
-                <p class="text-xs text-base-content/50">
-                  {gettext("Default layout for the contacts page")}
-                </p>
-              </div>
-            </div>
-            <div class="flex items-center gap-1 rounded-lg border border-base-content/15 bg-base-100 p-1">
-              <button
-                type="button"
-                phx-click="update_view_prefs"
-                phx-value-section="contacts"
-                phx-value-mode="table"
-                class={[
-                  "flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-all",
-                  if(@current_scope.user.contacts_view_mode == "table",
-                    do: "bg-primary text-primary-content shadow-sm",
-                    else: "text-base-content/60 hover:text-base-content"
-                  )
-                ]}
-              >
-                <.icon name="icon-[tabler--table]" class="size-3.5" />
-                {gettext("Table")}
-              </button>
-              <button
-                type="button"
-                phx-click="update_view_prefs"
-                phx-value-section="contacts"
-                phx-value-mode="card"
-                class={[
-                  "flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-all",
-                  if(@current_scope.user.contacts_view_mode == "card",
-                    do: "bg-primary text-primary-content shadow-sm",
-                    else: "text-base-content/60 hover:text-base-content"
-                  )
-                ]}
-              >
-                <.icon name="icon-[tabler--layout-grid]" class="size-3.5" />
-                {gettext("Cards")}
-              </button>
-            </div>
-          </div>
-
-          <%!-- Companies view mode --%>
-          <div class="flex items-center justify-between gap-4 rounded-xl border border-base-content/10 bg-base-200/30 p-4">
-            <div class="flex items-center gap-3">
-              <div class="flex size-9 shrink-0 items-center justify-center rounded-lg bg-secondary/10 text-secondary">
-                <.icon name="icon-[tabler--building]" class="size-5" />
-              </div>
-              <div>
-                <p class="text-sm font-semibold text-base-content">{gettext("Companies")}</p>
-                <p class="text-xs text-base-content/50">
-                  {gettext("Default layout for the companies page")}
-                </p>
-              </div>
-            </div>
-            <div class="flex items-center gap-1 rounded-lg border border-base-content/15 bg-base-100 p-1">
-              <button
-                type="button"
-                phx-click="update_view_prefs"
-                phx-value-section="companies"
-                phx-value-mode="table"
-                class={[
-                  "flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-all",
-                  if(@current_scope.user.companies_view_mode == "table",
-                    do: "bg-primary text-primary-content shadow-sm",
-                    else: "text-base-content/60 hover:text-base-content"
-                  )
-                ]}
-              >
-                <.icon name="icon-[tabler--table]" class="size-3.5" />
-                {gettext("Table")}
-              </button>
-              <button
-                type="button"
-                phx-click="update_view_prefs"
-                phx-value-section="companies"
-                phx-value-mode="card"
-                class={[
-                  "flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-all",
-                  if(@current_scope.user.companies_view_mode == "card",
-                    do: "bg-primary text-primary-content shadow-sm",
-                    else: "text-base-content/60 hover:text-base-content"
-                  )
-                ]}
-              >
-                <.icon name="icon-[tabler--layout-grid]" class="size-3.5" />
-                {gettext("Cards")}
-              </button>
-            </div>
-          </div>
-        </div>
       </.settings_section>
     </div>
     """
@@ -1659,6 +1657,12 @@ defmodule KonevoWeb.SettingsLive do
   attr(:importing?, :boolean, required: true)
 
   defp mail_signature_import(assigns) do
+    signature_imported? =
+      is_binary(assigns.integration.signature_html) and
+        String.trim(assigns.integration.signature_html) != ""
+
+    assigns = assign(assigns, :signature_imported?, signature_imported?)
+
     ~H"""
     <div
       id={"mail-signature-import-#{@integration.id}"}
@@ -1678,25 +1682,49 @@ defmodule KonevoWeb.SettingsLive do
             </p>
           </div>
         </div>
-        <button
-          type="button"
-          id={"mail-import-gmail-signature-#{@integration.id}"}
-          phx-click="fetch_gmail_signature"
-          phx-value-id={@integration.id}
-          disabled={@importing?}
-          class="btn btn-outline btn-neutral btn-sm gap-1.5 phx-click-loading:opacity-60 disabled:cursor-wait"
-        >
-          <.icon
-            name={if(@importing?, do: "icon-[tabler--loader-2]", else: "icon-[tabler--download]")}
-            class={["size-4", @importing? && "animate-spin"]}
-          />
-          <span>
-            {if(@importing?,
-              do: gettext("Importing signature"),
-              else: gettext("Import Gmail signature")
-            )}
-          </span>
-        </button>
+        <div class="flex items-center gap-2">
+          <button
+            type="button"
+            id={"mail-import-gmail-signature-#{@integration.id}"}
+            phx-click="fetch_gmail_signature"
+            phx-value-id={@integration.id}
+            disabled={@importing?}
+            class="btn btn-outline btn-neutral btn-sm gap-1.5 phx-click-loading:opacity-60 disabled:cursor-wait"
+          >
+            <.icon
+              name={
+                cond do
+                  @importing? -> "icon-[tabler--loader-2]"
+                  @signature_imported? -> "icon-[tabler--refresh]"
+                  true -> "icon-[tabler--download]"
+                end
+              }
+              class={["size-4", @importing? && "animate-spin"]}
+            />
+            <span>
+              <%= cond do %>
+                <% @importing? -> %>
+                  {gettext("Importing signature")}
+                <% @signature_imported? -> %>
+                  {gettext("Re-import Gmail signature")}
+                <% true -> %>
+                  {gettext("Import Gmail signature")}
+              <% end %>
+            </span>
+          </button>
+          <button
+            :if={@signature_imported?}
+            type="button"
+            id={"mail-remove-gmail-signature-#{@integration.id}"}
+            phx-click="clear_gmail_signature"
+            phx-value-id={@integration.id}
+            data-confirm={gettext("Remove the imported Gmail signature?")}
+            class="btn btn-sm btn-error btn-danger gap-1.5 shadow-sm"
+          >
+            <.icon name="icon-[tabler--trash]" class="size-3.5" />
+            {gettext("Remove")}
+          </button>
+        </div>
       </div>
     </div>
     """
@@ -1764,18 +1792,21 @@ defmodule KonevoWeb.SettingsLive do
     <div role="tabpanel" aria-labelledby="settings-tab-ai" class="space-y-8">
       <.settings_section
         title={gettext("AI behavior")}
-        subtitle={
-          gettext("Give Konevo the context and writing rules it should use across AI features.")
-        }
+        subtitle={gettext("Set shared context, email reply preferences, and task extraction rules.")}
         icon="icon-[tabler--sparkles]"
       >
         <.form
           for={@form}
           id="settings-ai-preferences-form"
           phx-submit="update_ai_preferences"
-          class="space-y-4"
+          class="space-y-6"
         >
-          <div class="grid gap-4 lg:grid-cols-2">
+          <.ai_preferences_section
+            id="settings-ai-general-heading"
+            title={gettext("General")}
+            subtitle={gettext("Shared business context used by all AI features.")}
+            icon="icon-[tabler--building]"
+          >
             <.input
               field={@form[:workspace_context]}
               type="textarea"
@@ -1785,66 +1816,70 @@ defmodule KonevoWeb.SettingsLive do
                   "I use this inbox for business inquiries for Company XYZ. We sell custom furniture, mostly B2B. Prioritize delivery timelines, pricing questions, and warm professional replies."
                 )
               }
-              rows="6"
+              rows="5"
             />
+          </.ai_preferences_section>
+
+          <.ai_preferences_section
+            id="settings-ai-email-heading"
+            title={gettext("Email replies")}
+            subtitle={gettext("Rules for AI-generated replies and follow-ups.")}
+            icon="icon-[tabler--mail]"
+          >
+            <div class="space-y-4">
+              <.input
+                field={@form[:email_instructions]}
+                type="textarea"
+                label={gettext("Email instructions")}
+                placeholder={
+                  gettext(
+                    "Keep replies short. Do not sound too salesy. Ask one clear follow-up question when details are missing. Never promise dates unless they are in the thread."
+                  )
+                }
+                rows="5"
+              />
+
+              <div class="grid gap-4 md:grid-cols-3">
+                <.ai_preference_select
+                  field={@form[:tone]}
+                  label={gettext("Tone")}
+                  icon="icon-[tabler--message-circle]"
+                  options={ai_preference_options(:tone)}
+                />
+                <.ai_preference_select
+                  field={@form[:language]}
+                  label={gettext("Language")}
+                  icon="icon-[tabler--language]"
+                  options={ai_preference_options(:language)}
+                />
+                <.ai_preference_select
+                  field={@form[:response_length]}
+                  label={gettext("Response length")}
+                  icon="icon-[tabler--align-justified]"
+                  options={ai_preference_options(:response_length)}
+                />
+              </div>
+            </div>
+          </.ai_preferences_section>
+
+          <.ai_preferences_section
+            id="settings-ai-task-heading"
+            title={gettext("Task extraction")}
+            subtitle={gettext("Rules for tasks extracted from email workflows and threads.")}
+            icon="icon-[tabler--checkbox]"
+          >
             <.input
-              field={@form[:email_instructions]}
+              field={@form[:task_instructions]}
               type="textarea"
-              label={gettext("Email behavior")}
+              label={gettext("Task instructions")}
               placeholder={
                 gettext(
-                  "Keep replies short. Do not sound too salesy. Ask one clear follow-up question when details are missing. Never promise dates unless they are in the thread."
+                  "Create tasks only for explicit, unfinished requests. Start titles with an action verb. Keep exact dates and times; leave the due date empty when none is stated."
                 )
               }
-              rows="6"
+              rows="5"
             />
-          </div>
-
-          <div class="grid gap-4 md:grid-cols-3">
-            <.input
-              field={@form[:tone]}
-              type="select"
-              label={gettext("Tone")}
-              options={[
-                {gettext("Professional"), "professional"},
-                {gettext("Friendly"), "friendly"},
-                {gettext("Direct"), "direct"},
-                {gettext("Warm"), "warm"}
-              ]}
-            />
-            <.input
-              field={@form[:language]}
-              type="select"
-              label={gettext("Language")}
-              options={[
-                {gettext("Same as incoming email"), "auto"},
-                {gettext("English"), "English"},
-                {gettext("Slovak"), "Slovak"}
-              ]}
-            />
-            <.input
-              field={@form[:response_length]}
-              type="select"
-              label={gettext("Response length")}
-              options={[
-                {gettext("Concise"), "concise"},
-                {gettext("Balanced"), "balanced"},
-                {gettext("Detailed"), "detailed"}
-              ]}
-            />
-          </div>
-
-          <.input
-            field={@form[:custom_instruction]}
-            type="textarea"
-            label={gettext("Instructions")}
-            placeholder={
-              gettext(
-                "For example: lead with the decision, avoid sales language, and offer two meeting times."
-              )
-            }
-            rows="5"
-          />
+          </.ai_preferences_section>
 
           <div class="mt-4 flex justify-end">
             <button
@@ -1879,6 +1914,125 @@ defmodule KonevoWeb.SettingsLive do
       </.settings_section>
     </div>
     """
+  end
+
+  attr(:field, Phoenix.HTML.FormField, required: true)
+  attr(:label, :string, required: true)
+  attr(:icon, :string, required: true)
+  attr(:options, :list, required: true)
+
+  defp ai_preference_select(assigns) do
+    selected_option =
+      Enum.find(assigns.options, &(&1.value == to_string(assigns.field.value || "")))
+
+    assigns = assign(assigns, :selected_option, selected_option)
+
+    ~H"""
+    <div class="fieldset flex w-full flex-col gap-2">
+      <span id={"#{@field.id}-label"} class="label">{@label}</span>
+      <div class="group relative w-full">
+        <span class="pointer-events-none absolute inset-y-0 left-3 z-20 flex items-center">
+          <span class="flex size-6 items-center justify-center rounded-md border border-primary/15 bg-primary/10 text-primary/70">
+            <.icon name={@icon} class="size-3.5" />
+          </span>
+        </span>
+        <.live_select
+          field={@field}
+          id={"settings-ai-#{@field.field |> to_string() |> String.replace("_", "-")}-select"}
+          options={@options}
+          value={@selected_option || @field.value}
+          value_mapper={&ai_preference_option_value(&1, @options)}
+          placeholder={@label}
+          style={:none}
+          debounce={120}
+          update_min_len={0}
+          container_class="relative w-full"
+          text_input_class="input h-10 w-full cursor-pointer pl-11 pr-12 font-medium placeholder:text-base-content/40 focus:cursor-text"
+          dropdown_class="absolute left-0 top-[calc(100%+4px)] z-[300] max-h-60 w-full overflow-y-auto rounded-lg border border-base-content/10 bg-base-100 p-1 shadow-xl shadow-base-content/10"
+          option_class="flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-sm"
+          available_option_class="cursor-pointer rounded-md hover:bg-base-200/70"
+          selected_option_class="cursor-pointer rounded-md bg-base-200/70 font-semibold"
+          active_option_class="bg-base-200"
+        >
+          <:option :let={option}>
+            <span class="flex size-6 shrink-0 items-center justify-center rounded-md border border-primary/15 bg-primary/10 text-primary/70">
+              <.icon name={@icon} class="size-3" />
+            </span>
+            <span class="min-w-0 flex-1 truncate">{option.label}</span>
+          </:option>
+        </.live_select>
+        <span
+          id={"#{@field.id}-select-chevron"}
+          class="pointer-events-none absolute inset-y-0 right-2 z-20 flex items-center text-base-content/45"
+        >
+          <.icon
+            name="icon-[tabler--chevron-down]"
+            class="size-4 transition-transform duration-200 group-focus-within:rotate-180"
+          />
+        </span>
+      </div>
+      <.error :for={msg <- field_errors(@field)}>{msg}</.error>
+    </div>
+    """
+  end
+
+  defp ai_preference_options(:tone) do
+    [
+      %{label: gettext("Professional"), value: "professional"},
+      %{label: gettext("Friendly"), value: "friendly"},
+      %{label: gettext("Direct"), value: "direct"},
+      %{label: gettext("Warm"), value: "warm"}
+    ]
+  end
+
+  defp ai_preference_options(:language) do
+    [
+      %{label: gettext("Same as incoming email"), value: "auto"},
+      %{label: gettext("English"), value: "English"},
+      %{label: gettext("Slovak"), value: "Slovak"}
+    ]
+  end
+
+  defp ai_preference_options(:response_length) do
+    [
+      %{label: gettext("Concise"), value: "concise"},
+      %{label: gettext("Balanced"), value: "balanced"},
+      %{label: gettext("Detailed"), value: "detailed"}
+    ]
+  end
+
+  defp ai_preference_options("settings-ai-tone-select", text),
+    do: filter_ai_preference_options(:tone, text)
+
+  defp ai_preference_options("settings-ai-language-select", text),
+    do: filter_ai_preference_options(:language, text)
+
+  defp ai_preference_options("settings-ai-response-length-select", text),
+    do: filter_ai_preference_options(:response_length, text)
+
+  defp filter_ai_preference_options(type, text) do
+    query = text |> to_string() |> String.trim() |> String.downcase()
+
+    Enum.filter(ai_preference_options(type), fn option ->
+      query == "" || String.contains?(String.downcase(option.label), query)
+    end)
+  end
+
+  defp ai_preference_option_value(value, options) when is_binary(value) do
+    case Enum.find(options, &(to_string(&1.value) == value)) do
+      nil -> value
+      option -> option.value
+    end
+  end
+
+  defp ai_preference_option_value(value, _options), do: value
+
+  defp field_errors(field) do
+    if Phoenix.Component.used_input?(field) do
+      Enum.map(field.errors, &translate_error/1)
+    else
+      []
+    end
   end
 
   attr(:summary, :map, required: true)
@@ -2000,21 +2154,25 @@ defmodule KonevoWeb.SettingsLive do
 
       <div class="p-4">
         <p class="text-sm font-medium text-base-content">
-          {format_tokens(@summary.total_tokens)}
+          <.token_count value={@summary.total_tokens} />
         </p>
 
         <div class="mt-4 grid grid-cols-2 gap-x-4 gap-y-3 text-xs">
           <div>
             <p class="text-base-content/50">{gettext("Input")}</p>
-            <p class="font-medium text-base-content">{format_tokens(@summary.input_tokens)}</p>
+            <p class="font-medium text-base-content">
+              <.token_count value={@summary.input_tokens} />
+            </p>
           </div>
           <div>
             <p class="text-base-content/50">{gettext("Output")}</p>
-            <p class="font-medium text-base-content">{format_tokens(@summary.output_tokens)}</p>
+            <p class="font-medium text-base-content">
+              <.token_count value={@summary.output_tokens} />
+            </p>
           </div>
           <div>
             <p class="text-base-content/50">{gettext("Runs")}</p>
-            <p class="font-medium text-base-content">{format_tokens(@summary.runs)}</p>
+            <p class="font-medium text-base-content">{format_count(@summary.runs)}</p>
           </div>
           <div>
             <p class="text-base-content/50">{gettext("Money spent")}</p>
@@ -2057,9 +2215,10 @@ defmodule KonevoWeb.SettingsLive do
             <span class="text-[0.65rem] font-semibold uppercase tracking-wide text-base-content/50">
               {gettext("Tokens")}
             </span>
-            <span class="mt-0.5 text-sm font-semibold text-base-content">
-              {format_tokens(@total_tokens)}
-            </span>
+            <.token_count
+              value={@total_tokens}
+              class="mt-0.5 text-sm font-semibold text-base-content"
+            />
           </div>
         </div>
       </div>
@@ -2082,7 +2241,7 @@ defmodule KonevoWeb.SettingsLive do
             <p class="text-sm font-semibold text-base-content">
               {model_usage_percentage(@usage, model.id)}%
             </p>
-            <p class="text-xs text-base-content/55">{format_tokens(model.total_tokens)}</p>
+            <p class="text-xs text-base-content/55"><.token_count value={model.total_tokens} /></p>
           </div>
         </div>
       </div>
@@ -2136,8 +2295,61 @@ defmodule KonevoWeb.SettingsLive do
   defp model_usage_color(:luna), do: "bg-blue-300"
   defp model_usage_color(_model), do: "bg-base-content/30"
 
-  defp format_tokens(value) when is_integer(value), do: Integer.to_string(value)
-  defp format_tokens(_value), do: "0"
+  attr(:value, :integer, default: 0)
+  attr(:class, :string, default: nil)
+
+  defp token_count(assigns) do
+    exact = format_count(assigns.value)
+    assigns = assign(assigns, compact: format_compact_tokens(assigns.value), exact: exact)
+
+    ~H"""
+    <span
+      class={["inline-flex cursor-help", @class]}
+      title={gettext("%{count} tokens", count: @exact)}
+      aria-label={gettext("%{count} tokens", count: @exact)}
+    >
+      {@compact}
+    </span>
+    """
+  end
+
+  defp format_compact_tokens(value) when is_integer(value) and value >= 1_000_000_000,
+    do: format_compact_unit(value, 1_000_000_000, "B")
+
+  defp format_compact_tokens(value) when is_integer(value) and value >= 1_000_000,
+    do: format_compact_unit(value, 1_000_000, "M")
+
+  defp format_compact_tokens(value) when is_integer(value) and value >= 1_000,
+    do: format_compact_unit(value, 1_000, "K")
+
+  defp format_compact_tokens(value), do: format_count(value)
+
+  defp format_compact_unit(value, unit, suffix) do
+    whole = div(value, unit)
+    tenths = div(rem(value, unit) * 10, unit)
+
+    case {whole, tenths} do
+      {single_digit, tenth} when single_digit < 10 and tenth > 0 ->
+        "#{single_digit}.#{tenth}#{suffix}"
+
+      {integer, _tenth} ->
+        "#{integer}#{suffix}"
+    end
+  end
+
+  defp format_count(value) when is_integer(value) and value >= 0 do
+    value
+    |> Integer.to_string()
+    |> String.reverse()
+    |> String.graphemes()
+    |> Enum.chunk_every(3)
+    |> Enum.map_join(",", &Enum.join/1)
+    |> String.reverse()
+  end
+
+  defp format_count(_value), do: "0"
+
+  defp format_tokens(value), do: format_count(value)
 
   defp format_money(%Decimal{} = value, scale) do
     "$" <> (value |> Decimal.round(scale) |> Decimal.to_string(:normal))

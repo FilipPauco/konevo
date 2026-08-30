@@ -1,5 +1,6 @@
 defmodule KonevoWeb.InboxLive.Show do
   use KonevoWeb, :live_view
+  import LiveSelect
 
   alias Konevo.AI
   alias Konevo.Companies.Company
@@ -584,9 +585,7 @@ defmodule KonevoWeb.InboxLive.Show do
     |> assign(:task_suggestions, [])
     |> assign(:task_extraction_error, nil)
     |> start_async({:task_extraction, thread.id}, fn ->
-      AI.extract_tasks_from_thread(scope, thread, %{
-        "instructions" => "Extract current, actionable follow-up tasks for this CRM thread."
-      })
+      AI.extract_tasks_from_thread(scope, thread)
     end)
   end
 
@@ -958,6 +957,21 @@ defmodule KonevoWeb.InboxLive.Show do
     {:noreply, start_task_extraction(socket)}
   end
 
+  def handle_event(
+        "live_select_change",
+        %{"id" => "task-review-priority-" <> suggestion_id, "text" => text} = params,
+        socket
+      ) do
+    if Enum.any?(socket.assigns.task_suggestions, &(to_string(&1.id) == suggestion_id)) do
+      send_update(LiveSelect.Component,
+        id: params["id"],
+        options: filter_task_priority_live_options(text)
+      )
+    end
+
+    {:noreply, socket}
+  end
+
   def handle_event("create_extracted_tasks", %{"task_review" => params}, socket) do
     suggestions = Map.get(params, "suggestions", %{})
 
@@ -1188,15 +1202,120 @@ defmodule KonevoWeb.InboxLive.Show do
     Konevo.DateTime.format_local(dt, "%b %d, %Y at %H:%M")
   end
 
+  defp format_datetime_compact(nil), do: ""
+
+  defp format_datetime_compact(%DateTime{} = dt) do
+    Konevo.DateTime.format_local(dt, "%b %d, %H:%M")
+  end
+
   defp task_review_form, do: to_form(%{}, as: :task_review)
 
-  defp task_priority_options do
+  defp task_suggestion_priority_forms(suggestions) do
+    Map.new(suggestions, fn suggestion ->
+      form =
+        to_form(%{"priority" => suggestion.priority},
+          as: "task_review[suggestions][#{suggestion.id}]",
+          id: "task-review-suggestion-#{suggestion.id}"
+        )
+
+      {suggestion.id, form}
+    end)
+  end
+
+  defp task_priority_live_options do
     [
-      {"low", gettext("Low")},
-      {"normal", gettext("Normal")},
-      {"high", gettext("High")},
-      {"urgent", gettext("Urgent")}
+      %{label: gettext("Low"), value: "low", icon: "icon-[tabler--flag-filled]"},
+      %{label: gettext("Normal"), value: "normal", icon: "icon-[tabler--flag-filled]"},
+      %{label: gettext("High"), value: "high", icon: "icon-[tabler--flag-filled]"},
+      %{label: gettext("Urgent"), value: "urgent", icon: "icon-[tabler--flag-filled]"}
     ]
+  end
+
+  defp filter_task_priority_live_options(text) do
+    query = text |> to_string() |> String.trim() |> String.downcase()
+
+    Enum.filter(task_priority_live_options(), fn option ->
+      String.contains?(String.downcase(option.label), query)
+    end)
+  end
+
+  defp task_priority_color("low"), do: "#64748b"
+  defp task_priority_color("normal"), do: "#3b82f6"
+  defp task_priority_color("high"), do: "#f97316"
+  defp task_priority_color("urgent"), do: "#ef4444"
+  defp task_priority_color(_priority), do: "#64748b"
+
+  defp task_priority_icon_style(priority) do
+    color = task_priority_color(priority)
+
+    [
+      "color: #{color}",
+      "background-color: color-mix(in srgb, #{color} 12%, transparent)",
+      "border-color: color-mix(in srgb, #{color} 24%, transparent)"
+    ]
+    |> Enum.join("; ")
+  end
+
+  attr(:field, Phoenix.HTML.FormField, required: true)
+  attr(:id, :string, required: true)
+
+  defp task_review_priority_select(assigns) do
+    assigns = assign(assigns, :options, task_priority_live_options())
+
+    ~H"""
+    <div class="fieldset w-full">
+      <span class="label">{gettext("Priority")}</span>
+      <div class="group relative w-full">
+        <span class="pointer-events-none absolute inset-y-0 left-3 z-20 flex items-center">
+          <span
+            class="flex size-6 items-center justify-center rounded-md border"
+            style={task_priority_icon_style(@field.value)}
+          >
+            <.icon name="icon-[tabler--flag]" class="size-3.5" />
+          </span>
+        </span>
+        <.live_select
+          field={@field}
+          id={@id}
+          options={@options}
+          value={@field.value}
+          placeholder={gettext("Choose priority")}
+          allow_clear={false}
+          style={:none}
+          debounce={120}
+          update_min_len={0}
+          container_class="relative w-full"
+          text_input_class="input w-full cursor-pointer pl-11 pr-12 font-medium placeholder:text-base-content/40 focus:cursor-text"
+          dropdown_class="absolute left-0 top-[calc(100%+4px)] z-[300] max-h-60 w-full overflow-y-auto rounded-lg border border-base-content/10 bg-base-100 p-1 shadow-xl shadow-base-content/10"
+          option_class="flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-sm"
+          available_option_class="cursor-pointer rounded-md hover:bg-base-200/70"
+          selected_option_class="cursor-pointer rounded-md bg-base-200/70 font-semibold"
+          active_option_class="bg-base-200"
+        >
+          <:option :let={option}>
+            <span
+              class="flex size-6 shrink-0 items-center justify-center rounded-md border"
+              style={task_priority_icon_style(option.value)}
+            >
+              <.icon name={option.icon} class="size-3" />
+            </span>
+            <span class="min-w-0 flex-1 truncate">{option.label}</span>
+            <.icon
+              :if={option.selected}
+              name="icon-[tabler--check]"
+              class="size-3.5 shrink-0 text-primary"
+            />
+          </:option>
+        </.live_select>
+        <span class="pointer-events-none absolute inset-y-0 right-2 z-20 flex items-center text-base-content/45">
+          <.icon
+            name="icon-[tabler--chevron-down]"
+            class="size-4 transition-transform duration-200 group-focus-within:rotate-180"
+          />
+        </span>
+      </div>
+    </div>
+    """
   end
 
   defp confidence_label(nil), do: gettext("Manual")
@@ -1441,7 +1560,7 @@ defmodule KonevoWeb.InboxLive.Show do
 
   defp email_header_class(email) do
     [
-      "flex items-start gap-3 border-b px-5 py-4",
+      "flex items-start gap-2.5 border-b px-3 py-3 sm:gap-3 sm:px-5 sm:py-4",
       if(email.is_inbound,
         do: "border-base-content/8 bg-base-200/25",
         else: "border-info/10 bg-info/5"
@@ -1492,6 +1611,7 @@ defmodule KonevoWeb.InboxLive.Show do
         * { box-sizing: border-box; }
         html, body { margin: 0; background: var(--email-background); color: var(--email-foreground); }
         body { min-height: 100%; padding: 16px 18px; font: 14px/1.5 Arial, Helvetica, sans-serif; overflow-wrap: anywhere; }
+        @media (max-width: 480px) { body { padding: 10px 12px; } }
         a { color: var(--email-link); text-decoration: underline; }
         img { max-width: 100%; height: auto; }
         .email-image-placeholder {
@@ -1571,6 +1691,13 @@ defmodule KonevoWeb.InboxLive.Show do
 
   @impl true
   def render(assigns) do
+    assigns =
+      assign(
+        assigns,
+        :task_suggestion_priority_forms,
+        task_suggestion_priority_forms(assigns.task_suggestions)
+      )
+
     ~H"""
     <Layouts.app flash={@flash} current_scope={@current_scope} current_path={@current_path}>
       <Layouts.page>
@@ -1589,29 +1716,29 @@ defmodule KonevoWeb.InboxLive.Show do
             <%!-- Email thread column --%>
             <div class="min-w-0 flex-1">
               <%!-- Thread header --%>
-              <div class="mb-4 rounded-lg border border-base-content/10 bg-base-100 p-5">
-                <div class="flex flex-wrap items-start justify-between gap-3">
+              <div class="mb-3 rounded-lg border border-base-content/10 bg-base-100 p-3 sm:mb-4 sm:p-5">
+                <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                   <div class="min-w-0">
-                    <h2 class="text-lg font-semibold leading-tight">
+                    <h2 class="text-base font-semibold leading-tight sm:text-lg">
                       {@thread.subject || gettext("(no subject)")}
                     </h2>
-                    <div class="mt-1.5 flex flex-wrap items-center gap-2">
+                    <div class="mt-1.5 flex flex-wrap items-center gap-1.5 sm:gap-2">
                       <span class={[
-                        "badge !h-6 !rounded-md px-2.5 text-xs font-semibold",
+                        "badge !h-5 !rounded-md px-2 text-[11px] font-semibold sm:!h-6 sm:px-2.5 sm:text-xs",
                         category_badge_class(@thread.category)
                       ]}>
                         {category_label(@thread.category)}
                       </span>
                       <span
                         :if={@thread.is_unresolved}
-                        class="badge badge-warning !h-6 !rounded-md gap-1.5 px-2.5 text-xs font-semibold"
+                        class="badge badge-warning !h-5 !rounded-md gap-1 px-2 text-[11px] font-semibold sm:!h-6 sm:gap-1.5 sm:px-2.5 sm:text-xs"
                       >
                         <span class="icon-[tabler--alert-circle] size-3.5" />
                         {gettext("Unresolved")}
                       </span>
                       <span
                         :if={!@thread.is_unresolved}
-                        class="badge badge-primary !h-6 !rounded-md gap-1.5 px-2.5 text-xs font-semibold"
+                        class="badge badge-primary !h-5 !rounded-md gap-1 px-2 text-[11px] font-semibold sm:!h-6 sm:gap-1.5 sm:px-2.5 sm:text-xs"
                       >
                         <span class="icon-[tabler--circle-check] size-3.5" />
                         {gettext("Resolved")}
@@ -1620,7 +1747,7 @@ defmodule KonevoWeb.InboxLive.Show do
                   </div>
 
                   <%!-- Thread actions --%>
-                  <div class="ml-auto flex shrink-0 flex-wrap items-center justify-end gap-2">
+                  <div class="flex w-full shrink-0 items-center justify-between border-t border-base-content/10 pt-2.5 sm:ml-auto sm:w-auto sm:border-t-0 sm:pt-0">
                     <button
                       type="button"
                       id="thread-header-reply"
@@ -1653,13 +1780,7 @@ defmodule KonevoWeb.InboxLive.Show do
                           type="button"
                           id="thread-favorite-toggle"
                           phx-click="toggle_favorite"
-                          class={[
-                            "flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm font-medium transition-colors hover:bg-warning/10",
-                            if(@thread.is_favorite,
-                              do: "text-warning",
-                              else: "text-base-content/70 hover:text-warning"
-                            )
-                          ]}
+                          class="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm font-medium text-base-content/70 transition-colors hover:bg-primary/10 hover:text-primary"
                           role="menuitem"
                         >
                           <.icon
@@ -1680,7 +1801,7 @@ defmodule KonevoWeb.InboxLive.Show do
                           :if={@thread.is_unresolved}
                           type="button"
                           phx-click="resolve"
-                          class="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm font-medium text-success transition-colors hover:bg-success/10"
+                          class="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm font-medium text-base-content/70 transition-colors hover:bg-success/10 hover:text-success"
                           role="menuitem"
                         >
                           <.icon name="icon-[tabler--circle-check]" class="size-4" />
@@ -1711,7 +1832,7 @@ defmodule KonevoWeb.InboxLive.Show do
                           :if={!@thread.is_archived}
                           type="button"
                           phx-click="archive"
-                          class="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm font-medium text-base-content/70 transition-colors hover:bg-base-200 hover:text-base-content"
+                          class="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm font-medium text-base-content/70 transition-colors hover:bg-warning/10 hover:text-warning"
                           role="menuitem"
                         >
                           <.icon name="icon-[tabler--archive]" class="size-4" />
@@ -1721,7 +1842,7 @@ defmodule KonevoWeb.InboxLive.Show do
                           :if={is_nil(@thread.trashed_at)}
                           type="button"
                           phx-click="move_to_bin"
-                          class="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm font-medium text-error transition-colors hover:bg-error/10"
+                          class="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm font-medium text-base-content/70 transition-colors hover:bg-error/10 hover:text-error"
                           role="menuitem"
                         >
                           <.icon name="icon-[tabler--trash]" class="size-4" />
@@ -1821,7 +1942,7 @@ defmodule KonevoWeb.InboxLive.Show do
                     class={email_card_class(email)}
                   >
                     <%!-- Email header --%>
-                    <div class={email_header_class(email)}>
+                    <div id={"email-header-#{email.id}"} class={email_header_class(email)}>
                       <div class={[
                         "flex size-9 shrink-0 items-center justify-center rounded-full text-sm font-bold",
                         sender_color(email.from)
@@ -1830,12 +1951,17 @@ defmodule KonevoWeb.InboxLive.Show do
                       </div>
                       <div class="min-w-0 flex-1">
                         <div class="flex items-baseline justify-between gap-2">
-                          <span class="text-sm font-semibold truncate">{email.from}</span>
-                          <span class="shrink-0 text-xs font-medium text-base-content/60">
-                            {format_datetime(email.received_at)}
+                          <span class="min-w-0 flex-1 truncate text-sm font-semibold">
+                            {email.from}
+                          </span>
+                          <span class="shrink-0 text-[11px] font-medium text-base-content/60 sm:text-xs">
+                            <span class="sm:hidden">
+                              {format_datetime_compact(email.received_at)}
+                            </span>
+                            <span class="hidden sm:inline">{format_datetime(email.received_at)}</span>
                           </span>
                         </div>
-                        <p class="mt-0.5 text-xs text-base-content/50">
+                        <p class="mt-0.5 truncate text-xs text-base-content/50">
                           {gettext("To:")} {Enum.join(email.to, ", ")}
                         </p>
                         <p :if={email.cc != []} class="text-xs text-base-content/40">
@@ -1845,7 +1971,7 @@ defmodule KonevoWeb.InboxLive.Show do
                     </div>
 
                     <%!-- Email body --%>
-                    <div class={["px-5 py-4", email_body_class(email)]}>
+                    <div class={["px-2.5 py-3 sm:px-5 sm:py-4", email_body_class(email)]}>
                       <% html_source = email_html_source(email) %>
                       <%= if html_source do %>
                         <iframe
@@ -1878,7 +2004,7 @@ defmodule KonevoWeb.InboxLive.Show do
 
                     <div
                       :if={Map.get(@email_attachments, email.id, []) != []}
-                      class="border-t border-base-content/8 px-5 py-3"
+                      class="border-t border-base-content/8 px-3 py-3 sm:px-5"
                     >
                       <p class="mb-2 text-xs font-semibold uppercase tracking-wider text-base-content/40">
                         {gettext("Attachments")}
@@ -1906,12 +2032,14 @@ defmodule KonevoWeb.InboxLive.Show do
                 >
                   <div
                     style="background-color: color-mix(in oklch, var(--color-primary) 10%, var(--color-base-100)); border-bottom: 1px solid color-mix(in oklch, var(--color-primary) 25%, transparent)"
-                    class="flex items-center justify-between px-5 py-3"
+                    class="flex items-center justify-between gap-3 px-3 py-2.5 sm:px-5 sm:py-3"
                   >
-                    <div class="flex items-center gap-2 text-sm">
+                    <div class="flex min-w-0 items-center gap-2 text-sm">
                       <span class="icon-[tabler--corner-down-left] size-4 text-base-content/40" />
-                      <span class="text-base-content/60">{gettext("Replying to")}</span>
-                      <span class="max-w-xs truncate font-medium text-base-content/60">
+                      <span class="hidden text-base-content/60 sm:inline">
+                        {gettext("Replying to")}
+                      </span>
+                      <span class="min-w-0 truncate font-medium text-base-content/70">
                         {@reply_to}
                       </span>
                     </div>
@@ -2019,7 +2147,7 @@ defmodule KonevoWeb.InboxLive.Show do
                       {@reply_draft_content}
                     </div>
 
-                    <div class="px-4 pt-4">
+                    <div class="px-3 py-3 sm:px-4 sm:pt-4">
                       <.rich_text_input
                         id="reply-body"
                         field={@reply_form[:body]}
@@ -2078,9 +2206,9 @@ defmodule KonevoWeb.InboxLive.Show do
                       </div>
                     </div>
 
-                    <div class="flex items-center justify-between border-t border-base-content/8 bg-base-200/50 px-5 py-3">
+                    <div class="flex items-center justify-between gap-2 border-t border-base-content/8 bg-base-200/50 px-3 py-2.5 sm:px-5 sm:py-3">
                       <.live_file_input upload={@uploads.reply_attachment} class="sr-only" />
-                      <div class="flex items-center gap-2 text-base-content/40 transition-opacity phx-submit-loading:pointer-events-none phx-submit-loading:opacity-45">
+                      <div class="flex shrink-0 items-center gap-1 text-base-content/40 transition-opacity phx-submit-loading:pointer-events-none phx-submit-loading:opacity-45 sm:gap-2">
                         <span
                           class="tooltip"
                           data-tip={
@@ -2095,7 +2223,7 @@ defmodule KonevoWeb.InboxLive.Show do
                             type="button"
                             phx-click="open_ai_reply_draft"
                             disabled={@generating_reply?}
-                            class="btn btn-xs btn-primary gap-1.5 disabled:cursor-wait"
+                            class="btn btn-xs btn-primary h-8 w-8 gap-0 p-0 disabled:cursor-wait sm:h-6 sm:w-auto sm:gap-1.5 sm:px-2"
                           >
                             <.icon
                               name={
@@ -2114,16 +2242,19 @@ defmodule KonevoWeb.InboxLive.Show do
                             </span>
                           </button>
                         </span>
-                        <div aria-hidden="true" class="h-5 w-px bg-base-content/15" />
+                        <div aria-hidden="true" class="hidden h-5 w-px bg-base-content/15 sm:block" />
                         <span class="tooltip" data-tip={gettext("Attach files")}>
-                          <label for={@uploads.reply_attachment.ref} class="btn btn-xs btn-ghost">
+                          <label
+                            for={@uploads.reply_attachment.ref}
+                            class="btn btn-xs btn-ghost h-8 w-8 p-0 sm:h-6"
+                          >
                             <span class="icon-[tabler--paperclip] size-4" />
                           </label>
                         </span>
                         <span class="tooltip" data-tip={gettext("Emoji")}>
                           <button
                             type="button"
-                            class="btn btn-xs btn-ghost"
+                            class="btn btn-xs btn-ghost h-8 w-8 p-0 sm:h-6"
                             data-tiptap-command
                             data-tiptap-target="reply-body"
                             data-action="emoji"
@@ -2132,13 +2263,17 @@ defmodule KonevoWeb.InboxLive.Show do
                           </button>
                         </span>
                       </div>
-                      <div class="flex items-center gap-2">
-                        <button type="button" phx-click="close_reply" class="btn btn-sm btn-ghost">
+                      <div class="flex shrink-0 items-center gap-1 sm:gap-2">
+                        <button
+                          type="button"
+                          phx-click="close_reply"
+                          class="btn btn-sm btn-ghost hidden sm:inline-flex"
+                        >
                           {gettext("Cancel")}
                         </button>
                         <div
                           aria-hidden="true"
-                          class="h-6 w-px bg-base-content/15"
+                          class="hidden h-6 w-px bg-base-content/15 sm:block"
                         />
                         <div
                           id="reply-schedule-dropdown"
@@ -2150,8 +2285,9 @@ defmodule KonevoWeb.InboxLive.Show do
                             type="button"
                             id="reply-schedule-menu"
                             data-toggle
-                            class="btn btn-primary btn-sm btn-square rounded-md"
+                            class="btn btn-primary btn-sm h-8 w-8 rounded-md p-0 sm:h-8 sm:w-8"
                             title={gettext("Schedule reply")}
+                            aria-label={gettext("Schedule reply")}
                           >
                             <span class="icon-[tabler--clock] size-4" />
                           </button>
@@ -2210,10 +2346,12 @@ defmodule KonevoWeb.InboxLive.Show do
                           type="submit"
                           disabled={@generating_reply?}
                           phx-disable-with={gettext("Sending…")}
-                          class="btn btn-sm btn-primary gap-1.5 disabled:cursor-wait"
+                          class="btn btn-sm btn-primary h-8 w-8 gap-0 p-0 disabled:cursor-wait sm:w-auto sm:gap-1.5 sm:px-3"
+                          aria-label={gettext("Send reply")}
+                          title={gettext("Send reply")}
                         >
                           <span class="icon-[tabler--send] size-4" />
-                          {gettext("Send reply")}
+                          <span class="hidden sm:inline">{gettext("Send reply")}</span>
                         </button>
                       </div>
                     </div>
@@ -2580,13 +2718,16 @@ defmodule KonevoWeb.InboxLive.Show do
                     value={suggestion.source_email_id}
                   />
                   <div class="mb-3 flex items-start gap-3">
-                    <input
-                      type="checkbox"
-                      name={"task_review[suggestions][#{suggestion.id}][selected]"}
-                      value="true"
-                      checked={suggestion.selected}
-                      class="checkbox checkbox-sm mt-1"
-                    />
+                    <label class="mt-0.5 flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-md transition-colors hover:bg-base-200">
+                      <input
+                        type="checkbox"
+                        name={"task_review[suggestions][#{suggestion.id}][selected]"}
+                        value="true"
+                        checked={suggestion.selected}
+                        aria-label={gettext("Include task suggestion")}
+                        class="checkbox checkbox-xs rounded-sm"
+                      />
+                    </label>
                     <div class="min-w-0 flex-1">
                       <div class="mb-2 flex flex-wrap items-center gap-2">
                         <span
@@ -2626,21 +2767,10 @@ defmodule KonevoWeb.InboxLive.Show do
                             required
                           />
                         </label>
-                        <label class="fieldset">
-                          <span class="label">{gettext("Priority")}</span>
-                          <select
-                            name={"task_review[suggestions][#{suggestion.id}][priority]"}
-                            class="select w-full"
-                          >
-                            <option
-                              :for={{value, label} <- task_priority_options()}
-                              value={value}
-                              selected={suggestion.priority == value}
-                            >
-                              {label}
-                            </option>
-                          </select>
-                        </label>
+                        <.task_review_priority_select
+                          id={"task-review-priority-#{suggestion.id}"}
+                          field={@task_suggestion_priority_forms[suggestion.id][:priority]}
+                        />
                         <label class="fieldset sm:col-span-2">
                           <span class="label">{gettext("Description")}</span>
                           <textarea

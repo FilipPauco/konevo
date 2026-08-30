@@ -8,7 +8,7 @@ defmodule Konevo.Deals.DefaultStages do
   alias Konevo.Repo
 
   @stages [
-    %{name: "Lead", position: 0, color: "#4b5563", is_final: false},
+    %{name: "Lead", position: 0, color: "#2dd4bf", is_final: false},
     %{name: "Qualified", position: 1, color: "#3b82f6", is_final: false},
     %{name: "Proposal", position: 2, color: "#f59e0b", is_final: false},
     %{name: "Negotiation", position: 3, color: "#8b5cf6", is_final: false},

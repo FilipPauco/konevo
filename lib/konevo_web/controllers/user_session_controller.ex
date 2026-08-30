@@ -5,7 +5,7 @@ defmodule KonevoWeb.UserSessionController do
   alias KonevoWeb.UserAuth
 
   def create(conn, %{"_action" => "confirmed"} = params) do
-    create(conn, params, gettext("User confirmed successfully"))
+    create(conn, params, gettext("User confirmed"))
   end
 
   def create(conn, params) do
@@ -54,7 +54,7 @@ defmodule KonevoWeb.UserSessionController do
 
     conn
     |> put_session(:user_return_to, ~p"/settings")
-    |> create(params, gettext("Password updated successfully"))
+    |> create(params, gettext("Password updated"))
   end
 
   def reset_password(conn, %{"user" => %{"token" => token} = user_params}) do
@@ -66,7 +66,7 @@ defmodule KonevoWeb.UserSessionController do
         |> log_in_or_begin_two_factor_auth(
           user,
           user_params,
-          gettext("Password reset successfully")
+          gettext("Password reset")
         )
 
       {:error, :invalid_token} ->
@@ -106,7 +106,7 @@ defmodule KonevoWeb.UserSessionController do
 
   def delete(conn, _params) do
     conn
-    |> put_flash(:success, gettext("Logged out successfully"))
+    |> put_flash(:success, gettext("Logged out"))
     |> UserAuth.log_out_user()
   end
 

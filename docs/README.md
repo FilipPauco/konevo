@@ -4,13 +4,13 @@ These documents describe the currently implemented self-hosted product.
 
 | Guide | Use it for |
 | --- | --- |
-| [Setup and deployment](SETUP.md) | Local development, production releases, environment variables, backups |
+| [Setup and deployment](SETUP.md) | Local development, environment variables, and production prerequisites |
 | [Gmail integration](GMAIL.md) | Google Cloud OAuth setup, scopes, testing, and production verification |
 | [Automations](AUTOMATIONS.md) | Workflow behavior, approvals, exclusions, and scheduled processing |
 | [Security](SECURITY.md) | Deployment hardening, secrets, uploads, incident response, and known boundaries |
 | [Search visibility](SEO.md) | Search metadata, sharing previews, sitemap, and post-deployment indexing |
-| [Docker deployment](DOCKER.md) | A single-server Docker, PostgreSQL, and HTTPS deployment |
-| [Release deployment](RELEASE_DEPLOYMENT.md) | Public-repository CI, GHCR releases, and server pull deployment |
+| [Docker deployment](DOCKER.md) | Short overview of the supported Docker workflow |
+| [Release deployment](RELEASE_DEPLOYMENT.md) | Primary production guide: CI, GHCR releases, first launch, and optional server pull updates |
 
 ## Public versus private notes
 

@@ -1,7 +1,6 @@
 defmodule KonevoWeb.ContactsLive.Index do
   use KonevoWeb, :live_view
 
-  alias Konevo.Accounts
   alias Konevo.Companies
   alias Konevo.Contacts
   alias Konevo.Contacts.Contact
@@ -13,8 +12,11 @@ defmodule KonevoWeb.ContactsLive.Index do
 
   @impl true
   def mount(_params, _session, socket) do
-    user = socket.assigns.current_scope.user
-    view_mode = parse_view_mode(user.contacts_view_mode)
+    view_mode =
+      case get_connect_params(socket) do
+        %{"viewport" => "mobile"} -> :card
+        _ -> :table
+      end
 
     {:ok,
      socket
@@ -41,7 +43,9 @@ defmodule KonevoWeb.ContactsLive.Index do
   def handle_params(params, _url, socket) do
     socket = apply_action(socket, socket.assigns.live_action, params)
 
-    {:noreply, load_contacts(socket, params)}
+    socket = load_contacts(socket, params)
+
+    {:noreply, assign(socket, :return_to, build_url(socket, %{}))}
   end
 
   defp load_contacts(socket, params) do
@@ -194,9 +198,9 @@ defmodule KonevoWeb.ContactsLive.Index do
 
     {:noreply,
      socket
-     |> put_flash(:success, gettext("Contact updated successfully"))
+     |> put_flash(:success, gettext("Contact updated"))
      |> stream_insert(:contacts, contact)
-     |> push_patch(to: ~p"/contacts")}
+     |> push_patch(to: socket.assigns.return_to)}
   end
 
   def handle_info({:contacts_total, request_ref, total}, socket) do
@@ -212,7 +216,7 @@ defmodule KonevoWeb.ContactsLive.Index do
 
     {:noreply,
      socket
-     |> put_flash(:success, gettext("Contact created successfully"))
+     |> put_flash(:success, gettext("Contact created"))
      |> update(:total, &(&1 + 1))
      |> stream_insert(:contacts, contact)
      |> push_patch(to: ~p"/contacts")}
@@ -298,6 +302,7 @@ defmodule KonevoWeb.ContactsLive.Index do
       |> push_patch(
         to:
           build_url(socket, %{
+            search: "",
             statuses: [],
             archive_filter: :active,
             company_ids: [],
@@ -337,8 +342,17 @@ defmodule KonevoWeb.ContactsLive.Index do
 
   def handle_event("delete", %{"id" => id}, socket) do
     contact = Contacts.get_contact!(socket.assigns.current_scope, id)
-    {:ok, _} = Contacts.delete_contact(socket.assigns.current_scope, contact)
-    {:noreply, stream_delete(socket, :contacts, contact)}
+
+    case Contacts.delete_contact(socket.assigns.current_scope, contact) do
+      {:ok, deleted} ->
+        {:noreply,
+         socket
+         |> stream_delete(:contacts, deleted)
+         |> put_flash(:success, gettext("Contact deleted"))}
+
+      {:error, :unauthorized} ->
+        {:noreply, put_flash(socket, :error, gettext("You cannot delete this contact"))}
+    end
   end
 
   def handle_event("archive", %{"id" => id}, socket) do
@@ -373,13 +387,8 @@ defmodule KonevoWeb.ContactsLive.Index do
 
   def handle_event("set_view_mode", %{"mode" => mode}, socket) do
     view_mode = parse_view_mode(mode)
-    user = socket.assigns.current_scope.user
-    Accounts.update_user_view_preferences(user, %{contacts_view_mode: mode})
 
-    {:noreply,
-     socket
-     |> assign(:view_mode, view_mode)
-     |> push_patch(to: build_url(socket, %{}))}
+    {:noreply, assign(socket, :view_mode, view_mode)}
   end
 
   defp parse_view_mode("card"), do: :card
@@ -411,6 +420,15 @@ defmodule KonevoWeb.ContactsLive.Index do
 
     if map_size(params) == 0, do: ~p"/contacts", else: ~p"/contacts?#{params}"
   end
+
+  defp edit_path(contact, return_to) do
+    case URI.parse(return_to).query do
+      nil -> ~p"/contacts/#{contact}/edit/inline"
+      query -> ~p"/contacts/#{contact}/edit/inline?#{URI.decode_query(query)}"
+    end
+  end
+
+  defp show_path(contact, return_to), do: ~p"/contacts/#{contact}?#{[return_to: return_to]}"
 
   defp push_param(list, _key, default, default), do: list
   defp push_param(list, key, value, _default), do: [{key, value} | list]
@@ -472,6 +490,24 @@ defmodule KonevoWeb.ContactsLive.Index do
       |> assign(:page_to, min(assigns.page * @per_page, assigns.total))
       |> assign(:page_numbers, page_display(assigns.page, total_pages))
       |> assign(:all_statuses, @all_statuses)
+      |> assign(
+        :filter_controls_active?,
+        assigns.statuses != [] or assigns.company_ids != [] or assigns.created_from != "" or
+          assigns.created_to != "" or assigns.archive_filter != :active
+      )
+      |> assign(
+        :filter_controls_count,
+        length(assigns.statuses) + length(assigns.company_ids) +
+          if(assigns.created_from != "", do: 1, else: 0) +
+          if(assigns.created_to != "", do: 1, else: 0) +
+          if(assigns.archive_filter != :active, do: 1, else: 0)
+      )
+      |> assign(
+        :filters_active?,
+        assigns.search != "" or assigns.statuses != [] or assigns.company_ids != [] or
+          assigns.created_from != "" or assigns.created_to != "" or
+          assigns.archive_filter != :active
+      )
 
     ~H"""
     <Layouts.app flash={@flash} current_scope={@current_scope} current_path={@current_path}>
@@ -486,7 +522,7 @@ defmodule KonevoWeb.ContactsLive.Index do
         <%!-- Toolbar --%>
         <div class="mb-4 flex flex-wrap items-center gap-2">
           <%!-- Search --%>
-          <div class="relative w-52 shrink-0">
+          <div class="relative w-full shrink-0 sm:w-52">
             <span class="icon-[tabler--search] pointer-events-none absolute left-2.5 top-1/2 z-10 size-3.5 -translate-y-1/2 text-base-content/40" />
             <form phx-change="search" phx-submit="search" id="contact-search-form">
               <input
@@ -513,56 +549,76 @@ defmodule KonevoWeb.ContactsLive.Index do
             </button>
           </div>
 
-          <.archive_filter_dropdown
-            id="contacts-archive-filter"
-            selected={@archive_filter}
-            options={archive_filter_options()}
-          />
-
-          <%!-- Filter dropdowns --%>
-          <%!-- Mobile filter toggle --%>
-          <button
-            type="button"
-            class={[
-              "btn btn-sm gap-1.5 border select-none sm:hidden",
-              if(@statuses != [] or @company_ids != [] or @created_from != "" or @created_to != "",
-                do: "border-primary/50 bg-primary/10 text-primary hover:bg-primary/15",
-                else:
-                  "border-base-content/20 bg-base-100 text-base-content hover:border-base-content/30"
-              )
-            ]}
-            phx-click={
-              JS.toggle(
-                to: "#contacts-filter-panel",
-                display: "flex",
-                in:
-                  {"transition ease-out duration-200", "opacity-0 -translate-y-1",
-                   "opacity-100 translate-y-0"},
-                out:
-                  {"transition ease-in duration-150", "opacity-100 translate-y-0",
-                   "opacity-0 -translate-y-1"}
-              )
-              |> JS.toggle_class("rotate-180", to: "#contacts-filter-chevron")
-            }
-          >
-            <span class="icon-[tabler--adjustments-horizontal] size-3.5" />
-            {gettext("Filters")}
-            <span
-              :if={@statuses != [] or @company_ids != [] or @created_from != "" or @created_to != ""}
-              class="flex size-4 items-center justify-center rounded-full bg-primary text-[10px] font-bold text-primary-content"
-            >
-              {length(@statuses) + length(@company_ids) + if(@created_from != "", do: 1, else: 0) +
-                if @created_to != "", do: 1, else: 0}
-            </span>
-            <span
-              id="contacts-filter-chevron"
-              class="icon-[tabler--chevron-down] size-3.5 opacity-50 transition-transform duration-200"
+          <div class="hidden sm:block">
+            <.archive_filter_dropdown
+              id="contacts-archive-filter"
+              selected={@archive_filter}
+              options={archive_filter_options()}
             />
-          </button>
+          </div>
+
+          <%!-- Mobile filters --%>
+          <div class="flex items-center gap-2 sm:hidden">
+            <button
+              type="button"
+              class={[
+                "btn btn-sm gap-1.5 border select-none",
+                if(@filter_controls_active?,
+                  do: "border-primary/50 bg-primary/10 text-primary hover:bg-primary/15",
+                  else:
+                    "border-base-content/20 bg-base-100 text-base-content hover:border-base-content/30"
+                )
+              ]}
+              phx-click={
+                JS.toggle(
+                  to: "#contacts-filter-panel",
+                  display: "flex",
+                  in:
+                    {"transition ease-out duration-200", "opacity-0 -translate-y-1",
+                     "opacity-100 translate-y-0"},
+                  out:
+                    {"transition ease-in duration-150", "opacity-100 translate-y-0",
+                     "opacity-0 -translate-y-1"}
+                )
+                |> JS.toggle_class("rotate-180", to: "#contacts-filter-chevron")
+              }
+            >
+              <span class="icon-[tabler--adjustments-horizontal] size-3.5" />
+              {gettext("Filters")}
+              <span
+                :if={@filter_controls_active?}
+                class="flex size-4 items-center justify-center rounded-full bg-primary text-[10px] font-bold text-primary-content"
+              >
+                {@filter_controls_count}
+              </span>
+              <span
+                id="contacts-filter-chevron"
+                class="icon-[tabler--chevron-down] size-3.5 opacity-50 transition-transform duration-200"
+              />
+            </button>
+            <button
+              :if={@filter_controls_active?}
+              id="contacts-clear-filters-mobile"
+              phx-click="clear_filters"
+              type="button"
+              aria-label={gettext("Clear filters")}
+              class="btn btn-sm btn-square border border-base-content/20 bg-base-100 text-base-content/60 transition-all hover:border-base-content/30 hover:text-base-content"
+            >
+              <.icon name="icon-[tabler--x]" class="size-3.5" />
+            </button>
+          </div>
           <div
             id="contacts-filter-panel"
-            class="hidden flex-wrap items-center gap-2 sm:flex"
+            class="hidden w-full flex-wrap items-center gap-2 rounded-xl border border-secondary/35 bg-secondary/10 p-3 sm:w-auto sm:rounded-none sm:border-0 sm:bg-transparent sm:p-0 sm:flex"
           >
+            <div class="sm:hidden">
+              <.archive_filter_dropdown
+                id="contacts-archive-filter-mobile"
+                selected={@archive_filter}
+                options={archive_filter_options()}
+              />
+            </div>
+
             <%!-- Status filter --%>
             <div class="relative" id="status-filter-dropdown" phx-hook="FilterPanel">
               <button
@@ -705,53 +761,54 @@ defmodule KonevoWeb.ContactsLive.Index do
               created_from={@created_from}
               created_to={@created_to}
             />
-
-            <%!-- Clear all filters --%>
-            <button
-              :if={@statuses != [] or @company_ids != [] or @created_from != "" or @created_to != ""}
-              phx-click="clear_filters"
-              type="button"
-              class="btn btn-sm gap-1.5 border border-base-content/20 bg-base-100 text-base-content/60 transition-all hover:border-base-content/30 hover:text-base-content"
-            >
-              <span class="icon-[tabler--x] size-3" />
-              {gettext("Clear filters")}
-            </button>
+            <div :if={@filters_active?} class="hidden border-l border-base-content/15 pl-2 sm:block">
+              <button
+                id="contacts-clear-filters"
+                phx-click="clear_filters"
+                type="button"
+                class="btn btn-sm border border-base-content/20 bg-base-100 text-base-content/60 transition-all hover:border-base-content/30 hover:text-base-content"
+              >
+                {gettext("Clear filters")}
+              </button>
+            </div>
           </div>
 
           <%!-- View mode toggle --%>
-          <div class="ml-auto flex items-center gap-1 rounded-lg border border-base-content/15 bg-base-100 p-1">
-            <button
-              type="button"
-              phx-click="set_view_mode"
-              phx-value-mode="table"
-              class={[
-                "flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium transition-all",
-                if(@view_mode == :table,
-                  do: "bg-neutral text-neutral-content shadow-sm",
-                  else: "text-base-content/50 hover:text-base-content"
-                )
-              ]}
-              title={gettext("Table view")}
-            >
-              <span class="icon-[tabler--table] size-3.5" />
-              <span class="hidden sm:inline">{gettext("Table")}</span>
-            </button>
-            <button
-              type="button"
-              phx-click="set_view_mode"
-              phx-value-mode="card"
-              class={[
-                "flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium transition-all",
-                if(@view_mode == :card,
-                  do: "bg-neutral text-neutral-content shadow-sm",
-                  else: "text-base-content/50 hover:text-base-content"
-                )
-              ]}
-              title={gettext("Card view")}
-            >
-              <span class="icon-[tabler--layout-grid] size-3.5" />
-              <span class="hidden sm:inline">{gettext("Cards")}</span>
-            </button>
+          <div id="contacts-toolbar-actions" class="ml-auto flex shrink-0 items-center gap-2">
+            <div class="flex items-center gap-1 rounded-lg border border-base-content/15 bg-base-100 p-1">
+              <button
+                type="button"
+                phx-click="set_view_mode"
+                phx-value-mode="table"
+                class={[
+                  "flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium transition-all",
+                  if(@view_mode == :table,
+                    do: "bg-neutral text-neutral-content shadow-sm",
+                    else: "text-base-content/50 hover:text-base-content"
+                  )
+                ]}
+                title={gettext("Table view")}
+              >
+                <span class="icon-[tabler--table] size-3.5" />
+                <span class="hidden sm:inline">{gettext("Table")}</span>
+              </button>
+              <button
+                type="button"
+                phx-click="set_view_mode"
+                phx-value-mode="card"
+                class={[
+                  "flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium transition-all",
+                  if(@view_mode == :card,
+                    do: "bg-neutral text-neutral-content shadow-sm",
+                    else: "text-base-content/50 hover:text-base-content"
+                  )
+                ]}
+                title={gettext("Card view")}
+              >
+                <span class="icon-[tabler--layout-grid] size-3.5" />
+                <span class="hidden sm:inline">{gettext("Cards")}</span>
+              </button>
+            </div>
           </div>
         </div>
 
@@ -837,7 +894,7 @@ defmodule KonevoWeb.ContactsLive.Index do
             <div
               :if={@total == 0 and !@contacts.loading}
               id="contacts-cards-empty"
-              class="flex flex-col items-center py-20 text-center"
+              class="flex flex-col items-center rounded-xl border border-base-content/20 bg-base-100 py-20 text-center"
             >
               <span class="icon-[tabler--users] mb-4 size-12 text-base-content/20" />
               <p class="text-sm font-medium text-base-content/50">
@@ -857,7 +914,10 @@ defmodule KonevoWeb.ContactsLive.Index do
               <div
                 :for={{id, contact} <- @streams.contacts}
                 id={id}
-                class="group relative flex flex-col overflow-hidden rounded-2xl border border-base-content/10 bg-base-100 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/25 hover:shadow-md hover:shadow-primary/8"
+                class={[
+                  "group relative flex flex-col overflow-hidden rounded-2xl border border-base-content/10 bg-base-100 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md",
+                  status_card_hover_class(contact.status)
+                ]}
               >
                 <% linkedin_url = filled_url(contact.linkedin_url) %>
                 <%!-- Card top accent --%>
@@ -867,7 +927,7 @@ defmodule KonevoWeb.ContactsLive.Index do
                 <div class="flex flex-1 flex-col gap-4 p-5">
                   <%!-- Avatar + name row --%>
                   <div class="flex items-start gap-3">
-                    <.link navigate={~p"/contacts/#{contact}"} class="shrink-0">
+                    <.link navigate={show_path(contact, @return_to)} class="shrink-0">
                       <%= if contact.avatar_id do %>
                         <img
                           src={~p"/uploads/avatar/#{contact.avatar_id}"}
@@ -886,8 +946,11 @@ defmodule KonevoWeb.ContactsLive.Index do
                     <div class="min-w-0 flex-1 pt-0.5">
                       <div class="flex items-center gap-1">
                         <.link
-                          navigate={~p"/contacts/#{contact}"}
-                          class="min-w-0 flex-1 truncate text-sm font-semibold text-base-content decoration-primary/50 underline-offset-2 transition-colors group-hover:text-primary group-hover:underline"
+                          navigate={show_path(contact, @return_to)}
+                          class={[
+                            "min-w-0 flex-1 truncate text-sm font-semibold text-base-content underline-offset-2 transition-colors group-hover:underline",
+                            status_card_title_hover_class(contact.status)
+                          ]}
                         >
                           {"#{contact.first_name} #{contact.last_name}" |> String.trim()}
                         </.link>
@@ -925,7 +988,7 @@ defmodule KonevoWeb.ContactsLive.Index do
                           >
                             <li>
                               <.link
-                                patch={~p"/contacts/#{contact}/edit/inline"}
+                                patch={edit_path(contact, @return_to)}
                                 class="flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm font-medium text-base-content/70 transition-colors hover:bg-primary/10 hover:text-primary"
                               >
                                 <span class="icon-[tabler--pencil] size-3.5" />
@@ -946,7 +1009,7 @@ defmodule KonevoWeb.ContactsLive.Index do
                                 <button
                                   type="button"
                                   phx-click={JS.push("restore", value: %{id: contact.id})}
-                                  class="flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm font-medium text-base-content/70 transition-colors hover:bg-success/10 hover:text-success"
+                                  class="flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm font-medium text-base-content/70 transition-colors hover:bg-warning/10 hover:text-warning"
                                 >
                                   <.icon name="icon-[tabler--archive-off]" class="size-3.5" />
                                   {gettext("Restore")}
@@ -1049,7 +1112,7 @@ defmodule KonevoWeb.ContactsLive.Index do
                         <% end %>
                         <div class="min-w-0 flex-1">
                           <.link
-                            navigate={~p"/contacts/#{contact}"}
+                            navigate={show_path(contact, @return_to)}
                             data-full-name={full_name}
                             class="block truncate text-sm font-medium decoration-primary/60 underline-offset-2 transition-colors hover:text-primary hover:underline"
                           >
@@ -1083,8 +1146,8 @@ defmodule KonevoWeb.ContactsLive.Index do
                         >
                           <li>
                             <.link
-                              patch={~p"/contacts/#{contact}/edit/inline"}
-                              class="flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm font-medium text-base-content/70 transition-colors hover:bg-base-200/60"
+                              patch={edit_path(contact, @return_to)}
+                              class="flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm font-medium text-base-content/70 transition-colors hover:bg-primary/10 hover:text-primary"
                             >
                               <.icon name="icon-[tabler--pencil]" class="size-3.5" />
                               {gettext("Edit")}
@@ -1102,7 +1165,7 @@ defmodule KonevoWeb.ContactsLive.Index do
                             <% else %>
                               <.link
                                 phx-click={JS.push("restore", value: %{id: contact.id})}
-                                class="flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm font-medium text-base-content/70 transition-colors hover:bg-success/10 hover:text-success"
+                                class="flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm font-medium text-base-content/70 transition-colors hover:bg-warning/10 hover:text-warning"
                               >
                                 <.icon name="icon-[tabler--archive-off]" class="size-3.5" />
                                 {gettext("Restore")}
@@ -1147,7 +1210,7 @@ defmodule KonevoWeb.ContactsLive.Index do
 
         <%!-- Footer: count + pagination --%>
         <div
-          :if={@contacts.ok? and !@contacts.loading}
+          :if={@contacts.ok? and !@contacts.loading and @total > 0}
           id="contacts-footer"
           class="mt-6 flex flex-wrap items-center justify-between gap-3"
         >
@@ -1219,7 +1282,7 @@ defmodule KonevoWeb.ContactsLive.Index do
         :if={@live_action in [:new, :edit]}
         id="contact-modal"
         show
-        on_cancel={hide_modal("contact-modal") |> JS.patch(~p"/contacts")}
+        on_cancel={hide_modal("contact-modal") |> JS.patch(@return_to)}
       >
         <.live_component
           module={KonevoWeb.ContactsLive.FormComponent}
@@ -1228,7 +1291,7 @@ defmodule KonevoWeb.ContactsLive.Index do
           action={@live_action}
           contact={@contact}
           current_scope={@current_scope}
-          patch={~p"/contacts"}
+          patch={@return_to}
         />
       </.modal>
     </Layouts.app>
@@ -1296,7 +1359,7 @@ defmodule KonevoWeb.ContactsLive.Index do
   end
 
   defp status_pill_class(:lead),
-    do: "border-info/30 bg-info/12 text-info"
+    do: "border-teal-400/30 bg-teal-400/12 text-teal-700 dark:text-teal-300"
 
   defp status_pill_class(:prospect),
     do: "border-amber-500/30 bg-amber-500/10 text-amber-700"
@@ -1310,7 +1373,7 @@ defmodule KonevoWeb.ContactsLive.Index do
   defp status_pill_class(_),
     do: "border-base-content/15 bg-base-200 text-base-content/60"
 
-  defp status_dot_class(:lead), do: "bg-info"
+  defp status_dot_class(:lead), do: "bg-teal-400"
   defp status_dot_class(:prospect), do: "bg-warning"
   defp status_dot_class(:customer), do: "bg-success"
   defp status_dot_class(:churned), do: "bg-error"
@@ -1336,15 +1399,32 @@ defmodule KonevoWeb.ContactsLive.Index do
 
   defp filled_url(_value), do: nil
 
-  defp status_avatar_class(:lead), do: "bg-info/15 text-info"
+  defp status_avatar_class(:lead), do: "bg-teal-400/15 text-teal-700 dark:text-teal-300"
   defp status_avatar_class(:prospect), do: "bg-amber-500/15 text-amber-600"
   defp status_avatar_class(:customer), do: "bg-success/15 text-success"
   defp status_avatar_class(:churned), do: "bg-error/15 text-error"
   defp status_avatar_class(_), do: "bg-primary/10 text-primary"
 
-  defp status_card_accent(:lead), do: "bg-gradient-to-r from-info/60 to-info/20"
+  defp status_card_accent(:lead), do: "bg-gradient-to-r from-teal-400/60 to-teal-400/20"
   defp status_card_accent(:prospect), do: "bg-gradient-to-r from-amber-500/60 to-amber-500/20"
   defp status_card_accent(:customer), do: "bg-gradient-to-r from-success/60 to-success/20"
   defp status_card_accent(:churned), do: "bg-gradient-to-r from-error/60 to-error/20"
   defp status_card_accent(_), do: "bg-gradient-to-r from-base-content/20 to-base-content/5"
+
+  defp status_card_hover_class(:lead), do: "hover:border-teal-400/35 hover:shadow-teal-400/10"
+
+  defp status_card_hover_class(:prospect),
+    do: "hover:border-amber-500/35 hover:shadow-amber-500/10"
+
+  defp status_card_hover_class(:customer), do: "hover:border-success/35 hover:shadow-success/10"
+  defp status_card_hover_class(:churned), do: "hover:border-error/35 hover:shadow-error/10"
+  defp status_card_hover_class(_), do: "hover:border-base-content/20 hover:shadow-base-content/8"
+
+  defp status_card_title_hover_class(:lead),
+    do: "group-hover:text-teal-700 dark:group-hover:text-teal-300"
+
+  defp status_card_title_hover_class(:prospect), do: "group-hover:text-amber-700"
+  defp status_card_title_hover_class(:customer), do: "group-hover:text-success"
+  defp status_card_title_hover_class(:churned), do: "group-hover:text-error"
+  defp status_card_title_hover_class(_), do: "group-hover:text-base-content"
 end

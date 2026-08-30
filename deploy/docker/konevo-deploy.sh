@@ -9,7 +9,7 @@ set -Eeuo pipefail
 : "${GITHUB_REPOSITORY:?Set GITHUB_REPOSITORY in /etc/konevo/deploy.env}"
 
 readonly APP_DIR="${APP_DIR:-/opt/konevo/app}"
-readonly COMPOSE_FILE="${COMPOSE_FILE:-deploy/docker/compose.yaml}"
+readonly COMPOSE_FILES="${COMPOSE_FILES:-${COMPOSE_FILE:-deploy/docker/compose.yaml}}"
 readonly STATE_DIR="${STATE_DIR:-/var/lib/konevo}"
 readonly STATE_FILE="${STATE_DIR}/deployed-version"
 readonly LOCK_FILE="${STATE_DIR}/deploy.lock"
@@ -70,7 +70,18 @@ main() {
   git checkout --quiet --detach "$version"
 
   local app_image="${APP_IMAGE_REPOSITORY}:${version}"
-  local compose=(docker compose --env-file .env -f "$COMPOSE_FILE")
+  local compose_files=()
+  local compose_file
+
+  IFS=: read -r -a compose_files <<< "$COMPOSE_FILES"
+  ((${#compose_files[@]} > 0)) || fail "COMPOSE_FILES must contain at least one Compose file"
+
+  local compose=(docker compose --env-file .env)
+
+  for compose_file in "${compose_files[@]}"; do
+    [[ -n "$compose_file" ]] || fail "COMPOSE_FILES must not contain empty paths"
+    compose+=(-f "$compose_file")
+  done
 
   # Bootstrap infrastructure on the first release only. Routine releases do
   # not restart PostgreSQL or Caddy merely because application code changed.
@@ -78,8 +89,8 @@ main() {
     APP_IMAGE="$app_image" "${compose[@]}" up -d --wait db
   fi
 
-  APP_IMAGE="$app_image" docker compose --env-file .env -f "$COMPOSE_FILE" pull app
-  APP_IMAGE="$app_image" docker compose --env-file .env -f "$COMPOSE_FILE" up -d --no-deps app
+  APP_IMAGE="$app_image" "${compose[@]}" pull app
+  APP_IMAGE="$app_image" "${compose[@]}" up -d --no-deps app
 
   if ! APP_IMAGE="$app_image" "${compose[@]}" ps --status running --services | grep --fixed-strings --quiet caddy; then
     APP_IMAGE="$app_image" "${compose[@]}" up -d caddy

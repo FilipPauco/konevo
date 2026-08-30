@@ -59,7 +59,7 @@ defmodule KonevoWeb.UserLive.ConfirmationTest do
       conn = follow_trigger_action(form, conn)
 
       assert Phoenix.Flash.get(conn.assigns.flash, :success) =~
-               "User confirmed successfully"
+               "User confirmed"
 
       assert Accounts.get_user!(user.id).confirmed_at
       # we are logged in now

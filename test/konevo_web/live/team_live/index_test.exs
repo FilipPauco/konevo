@@ -19,11 +19,12 @@ defmodule KonevoWeb.TeamLive.IndexTest do
   describe "mount" do
     setup :register_and_log_in_user_with_org
 
-    test "renders team page and shows invite button for owner", %{conn: conn, org: org} do
-      {:ok, _lv, html} = connect_as_owner(conn, org)
+    test "renders team page with a disabled invite button for owner", %{conn: conn, org: org} do
+      {:ok, lv, html} = connect_as_owner(conn, org)
 
       assert html =~ "Team"
       assert html =~ "Invite member"
+      assert has_element?(lv, "#invite-member-button[disabled]")
     end
 
     test "lists the current owner in the members stream", %{conn: conn, org: org, user: owner} do
@@ -31,6 +32,9 @@ defmodule KonevoWeb.TeamLive.IndexTest do
 
       html = render_async(lv)
       assert html =~ owner.email
+      assert has_element?(lv, "#team-table.mobile-data-table-container")
+      assert has_element?(lv, "#team-table .mobile-data-table")
+      assert has_element?(lv, "#members .mobile-data-card")
     end
 
     test "viewer sees members but no invite button", %{conn: conn, org: org} do
@@ -78,6 +82,13 @@ defmodule KonevoWeb.TeamLive.IndexTest do
 
       assert has_element?(lv, "#members-#{alice_membership.id}")
       refute has_element?(lv, "#members-#{bob_membership.id}")
+      assert has_element?(lv, "#team-clear-filters")
+
+      lv |> element("#team-clear-filters") |> render_click()
+      _ = render_async(lv)
+
+      assert has_element?(lv, "#members-#{bob_membership.id}")
+      refute has_element?(lv, "#team-clear-filters")
     end
 
     test "paginates team members", %{conn: conn, org: org} do
@@ -94,61 +105,6 @@ defmodule KonevoWeb.TeamLive.IndexTest do
       html = html <> render_async(lv)
 
       assert html =~ "Showing 26-27 of 27"
-    end
-  end
-
-  describe "invite member" do
-    setup :register_and_log_in_user_with_org
-
-    test "owner can open invite modal", %{conn: conn, org: org} do
-      {:ok, lv, _html} = connect_as_owner(conn, org)
-      _ = render_async(lv)
-
-      html = lv |> element("button[phx-click='open_invite']") |> render_click()
-
-      assert html =~ "Invite a member"
-    end
-
-    test "owner can close invite modal", %{conn: conn, org: org} do
-      {:ok, lv, _html} = connect_as_owner(conn, org)
-      _ = render_async(lv)
-
-      lv |> element("button[phx-click='open_invite']") |> render_click()
-      # Use the Cancel button specifically (there are two close_invite buttons)
-      html = lv |> element("button[phx-click='close_invite']", "Cancel") |> render_click()
-
-      refute html =~ "Invite a member"
-    end
-
-    test "inviting a new email creates membership and shows flash", %{conn: conn, org: org} do
-      {:ok, lv, _html} = connect_as_owner(conn, org)
-      _ = render_async(lv)
-
-      lv |> element("button[phx-click='open_invite']") |> render_click()
-
-      new_email = unique_user_email()
-
-      html =
-        lv
-        |> form("#invite-form", invite: %{email: new_email, role: "member"})
-        |> render_submit()
-
-      assert html =~ "Invitation sent to #{new_email}"
-      assert Accounts.get_user_by_email(new_email)
-    end
-
-    test "inviting an already-member email shows error", %{conn: conn, org: org, user: owner} do
-      {:ok, lv, _html} = connect_as_owner(conn, org)
-      _ = render_async(lv)
-
-      lv |> element("button[phx-click='open_invite']") |> render_click()
-
-      html =
-        lv
-        |> form("#invite-form", invite: %{email: owner.email, role: "member"})
-        |> render_submit()
-
-      assert html =~ "already a member"
     end
   end
 

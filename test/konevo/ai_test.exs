@@ -313,18 +313,19 @@ defmodule Konevo.AITest do
 
       assert {:ok, _preference} =
                AI.update_preference(scope, %{
-                 workspace_context: "Company XYZ sells custom furniture to B2B buyers."
+                 workspace_context: "Company XYZ sells custom furniture to B2B buyers.",
+                 task_instructions: "Only extract sales follow-ups."
                })
 
       assert {:ok, %{tasks: [task], extraction: extraction, run: run}} =
-               AI.extract_tasks_from_email(scope, email, %{
-                 "instructions" => "Only extract sales follow-ups."
-               })
+               AI.extract_tasks_from_email(scope, email)
 
       assert_received {:ai_complete, :entity_extraction, messages}
-      assert [%{role: :system}, %{role: :user, content: content}] = messages
+
+      assert [%{role: :system, content: instructions}, %{role: :user}] = messages
+
       assert List.first(messages).content =~ "Company XYZ sells custom furniture"
-      assert content =~ "Only extract sales follow-ups."
+      assert instructions =~ "Only extract sales follow-ups."
       assert task["title"] == "Send pricing"
       assert extraction.model_used == "mock-fast"
       assert extraction.extraction_confidence == 0.92
@@ -473,14 +474,15 @@ defmodule Konevo.AITest do
                  tone: "warm",
                  language: "Slovak",
                  response_length: "detailed",
-                 custom_instruction: "Use a helpful, direct style.",
                  workspace_context: "User applies for jobs from this inbox.",
-                 email_instructions: "Be concise in emails."
+                 email_instructions: "Be concise in emails.",
+                 task_instructions: "Only create actionable follow-up tasks."
                })
 
       assert {:ok, preference} = AI.get_preference(scope)
       assert preference.workspace_context == "User applies for jobs from this inbox."
       assert preference.email_instructions == "Be concise in emails."
+      assert preference.task_instructions == "Only create actionable follow-up tasks."
     end
 
     test "rejects unsupported preference values" do

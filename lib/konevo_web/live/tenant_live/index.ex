@@ -45,6 +45,10 @@ defmodule KonevoWeb.TenantLive.Index do
     {:noreply, push_patch(socket, to: ~p"/tenants", replace: true)}
   end
 
+  def handle_event("clear_filters", _params, socket) do
+    {:noreply, push_patch(socket, to: ~p"/tenants", replace: true)}
+  end
+
   def handle_event("create", %{"tenant" => params}, socket) do
     scope = socket.assigns.current_scope
 
@@ -104,7 +108,7 @@ defmodule KonevoWeb.TenantLive.Index do
         </:actions>
 
         <div class="mb-4 flex flex-wrap items-center gap-2">
-          <div class="relative w-72 shrink-0">
+          <div class="relative w-full shrink-0 sm:w-72">
             <.icon
               name="icon-[tabler--search]"
               class="pointer-events-none absolute left-2.5 top-1/2 z-10 size-3.5 -translate-y-1/2 text-base-content/40"
@@ -133,23 +137,35 @@ defmodule KonevoWeb.TenantLive.Index do
               <.icon name="icon-[tabler--x]" class="size-3.5" />
             </button>
           </div>
+
+          <div :if={@search != ""} class="hidden border-l border-base-content/15 pl-2 sm:block">
+            <button
+              id="tenant-clear-filters"
+              phx-click="clear_filters"
+              type="button"
+              class="btn btn-sm gap-1.5 border border-base-content/20 bg-base-100 text-base-content/60 transition-all hover:border-base-content/30 hover:text-base-content"
+            >
+              <.icon name="icon-[tabler--x]" class="size-3" />
+              {gettext("Clear filters")}
+            </button>
+          </div>
         </div>
 
         <.async_result :let={_stream_ready?} assign={@tenant_invitations}>
           <:loading>
             <div
               id="tenant-table-loading"
-              class="overflow-x-auto rounded-xl border border-base-content/20 bg-base-100"
+              class="mobile-data-table-container overflow-x-auto rounded-xl border border-base-content/20 bg-base-100"
               aria-busy="true"
               aria-label={gettext("Loading tenants")}
             >
-              <table class="table w-full min-w-[50rem] table-fixed">
+              <table class="mobile-data-table table w-full min-w-[50rem] table-fixed">
                 <.tenant_table_header />
                 <tbody class="divide-y divide-base-content/8">
                   <tr
                     :for={row <- 1..5}
                     id={"tenant-skeleton-#{row}"}
-                    class="divide-x divide-base-content/8"
+                    class="mobile-data-skeleton divide-x divide-base-content/8"
                   >
                     <td class="px-4 py-3"><div class="skeleton h-4 w-40 rounded-md" /></td>
                     <td class="px-4 py-3"><div class="skeleton h-4 w-28 rounded-md" /></td>
@@ -174,9 +190,9 @@ defmodule KonevoWeb.TenantLive.Index do
 
           <div
             id="tenant-table"
-            class="overflow-x-auto rounded-xl border border-base-content/20 bg-base-100"
+            class="mobile-data-table-container overflow-x-auto rounded-xl border border-base-content/20 bg-base-100"
           >
-            <table class="table w-full min-w-[50rem] table-fixed">
+            <table class="mobile-data-table table w-full min-w-[50rem] table-fixed">
               <.tenant_table_header />
               <tbody
                 id="tenant-invitations"
@@ -186,7 +202,7 @@ defmodule KonevoWeb.TenantLive.Index do
                 <tr
                   :if={!@tenant_invitations.loading}
                   id="tenant-invitations-empty"
-                  class="hidden only:table-row"
+                  class="mobile-data-empty hidden only:table-row"
                 >
                   <td colspan="5" class="px-4 py-16 text-center">
                     <.icon
@@ -204,15 +220,16 @@ defmodule KonevoWeb.TenantLive.Index do
                 <tr
                   :for={{id, invitation} <- @streams.tenant_invitations}
                   id={id}
-                  class="group divide-x divide-base-content/8 transition-colors hover:bg-base-200/40"
+                  class="mobile-data-card group divide-x divide-base-content/8 transition-colors hover:bg-base-200/40"
                 >
-                  <td class="relative px-4 py-3">
+                  <td class="mobile-data-title relative px-4 py-3">
                     <p class="truncate pr-9 text-sm font-medium text-base-content">
                       {invitation.organization.name}
                     </p>
                     <.tenant_actions invitation={invitation} />
                   </td>
-                  <td class="px-4 py-3">
+                  <td class="mobile-data-field mobile-data-field--wide px-4 py-3">
+                    <span class="mobile-data-field-label">{gettext("Slug")}</span>
                     <p
                       id={"tenant-slug-#{invitation.id}"}
                       class="truncate text-sm text-base-content/70"
@@ -220,12 +237,17 @@ defmodule KonevoWeb.TenantLive.Index do
                       {invitation.organization.slug}
                     </p>
                   </td>
-                  <td class="px-4 py-3 text-sm text-base-content/70">{invitation.email}</td>
-                  <td class="px-4 py-3">
+                  <td class="mobile-data-field mobile-data-field--wide px-4 py-3 text-sm text-base-content/70">
+                    <span class="mobile-data-field-label">{gettext("Owner")}</span>
+                    <span class="min-w-0 truncate">{invitation.email}</span>
+                  </td>
+                  <td class="mobile-data-field mobile-data-field--primary px-4 py-3">
+                    <span class="mobile-data-field-label">{gettext("Status")}</span>
                     <.tenant_status_pill invitation={invitation} />
                   </td>
-                  <td class="px-4 py-3 text-sm text-base-content/60">
-                    {format_date(invitation.inserted_at)}
+                  <td class="mobile-data-field mobile-data-field--end px-4 py-3 text-sm text-base-content/60">
+                    <span class="mobile-data-field-label">{gettext("Invited")}</span>
+                    <span>{format_date(invitation.inserted_at)}</span>
                   </td>
                 </tr>
               </tbody>

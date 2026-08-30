@@ -11,9 +11,9 @@ defmodule Konevo.AI.Preference do
     field :language, :string, default: "auto"
     field :response_length, :string, default: "concise"
     field :signature, :string
-    field :custom_instruction, :string
     field :workspace_context, :string
     field :email_instructions, :string
+    field :task_instructions, :string
 
     belongs_to :organization, Konevo.Accounts.Organization
     belongs_to :user, Konevo.Accounts.User
@@ -32,17 +32,17 @@ defmodule Konevo.AI.Preference do
       :language,
       :response_length,
       :signature,
-      :custom_instruction,
       :workspace_context,
-      :email_instructions
+      :email_instructions,
+      :task_instructions
     ])
     |> validate_required([:tone, :language, :response_length])
     |> validate_inclusion(:tone, @tones)
     |> validate_inclusion(:language, @languages)
     |> validate_inclusion(:response_length, @lengths)
     |> validate_length(:signature, max: 5_000)
-    |> validate_length(:custom_instruction, max: 10_000)
     |> validate_length(:workspace_context, max: 20_000)
-    |> validate_length(:email_instructions, max: 10_000)
+    |> validate_length(:email_instructions, max: 20_000)
+    |> validate_length(:task_instructions, max: 10_000)
   end
 end

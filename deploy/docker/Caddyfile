@@ -1,24 +1,5 @@
+import /etc/caddy/Caddyfile.common
+
 {$PHX_HOST} {
-  encode zstd gzip
-
-  # Caddy 2.10+ rejects oversize bodies before proxying them to Phoenix.
-  request_body {
-    max_size 5MB
-  }
-
-  reverse_proxy app:4000 {
-    # Overwrite any browser-supplied value; the app container is private to
-    # this Compose network and may safely trust this header for rate limiting.
-    header_up -X-Konevo-Client-IP
-    header_up X-Konevo-Client-IP {remote_host}
-
-    transport http {
-      # Includes active WebSocket tunnels; protects the Phoenix VM from
-      # connection floods while preserving normal concurrent use.
-      max_conns_per_host 128
-    }
-
-    # Reap abandoned or deliberately long-lived WebSocket tunnels.
-    stream_timeout 24h
-  }
+  import konevo_proxy
 }

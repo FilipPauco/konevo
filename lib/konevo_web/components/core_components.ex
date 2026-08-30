@@ -1445,51 +1445,83 @@ defmodule KonevoWeb.CoreComponents do
   def company_select(assigns) do
     nil_option = %{label: gettext("No company"), value: nil}
     options = if assigns.required, do: assigns.options, else: [nil_option | assigns.options]
-    assigns = assign(assigns, :live_select_options, options)
+
+    assigns =
+      assigns
+      |> assign(:live_select_options, options)
+      |> assign(:selected_option, selected_live_select_option(options, assigns.field.value))
 
     ~H"""
     <div class="fieldset flex w-full flex-col gap-2">
       <span :if={@label} class="label">{@label}</span>
-      <div class="relative w-full">
+      <div class="group relative w-full">
         <span class="pointer-events-none absolute inset-y-0 left-3 z-20 flex items-center">
-          <span class="flex size-6 items-center justify-center rounded-md bg-base-200">
-            <.icon name="icon-[tabler--building]" class="size-3.5 text-base-content/40" />
+          <span class="flex size-6 items-center justify-center rounded-md border border-primary/15 bg-primary/10 text-primary/70">
+            <.icon name="icon-[tabler--building]" class="size-3.5" />
           </span>
         </span>
         <.live_select
           field={@field}
           options={@live_select_options}
+          value={@selected_option || @field.value}
+          value_mapper={&live_select_option_value(&1, @live_select_options)}
           phx-target={@myself}
           placeholder={gettext("Search companies…")}
           style={:none}
           debounce={150}
           update_min_len={1}
           container_class="relative w-full"
-          text_input_class="input w-full pl-11 pr-8 placeholder:text-base-content/40"
-          dropdown_class="absolute left-0 top-[calc(100%+4px)] z-[300] w-full max-h-60 overflow-y-auto rounded-lg border border-base-content/10 bg-base-100 shadow-lg shadow-black/[0.07]"
-          option_class="flex w-full items-center gap-3 px-2.5 py-2 text-sm"
-          available_option_class="cursor-pointer rounded-lg hover:bg-base-200/70"
-          selected_option_class="cursor-pointer rounded-lg hover:bg-base-200/70 font-medium"
+          text_input_class="input h-10 w-full cursor-pointer pl-11 pr-12 font-medium placeholder:text-base-content/40 focus:cursor-text"
+          dropdown_class="absolute left-0 top-[calc(100%+4px)] z-[300] w-full max-h-60 overflow-y-auto rounded-lg border border-base-content/10 bg-base-100 p-1 shadow-xl shadow-base-content/10"
+          option_class="flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-sm"
+          available_option_class="cursor-pointer rounded-md hover:bg-base-200/70"
+          selected_option_class="cursor-pointer rounded-md bg-base-200/70 font-semibold"
           active_option_class="bg-base-200"
         >
           <:option :let={opt}>
-            <%= if is_nil(opt.value) do %>
-              <span class="flex size-7 shrink-0 items-center justify-center rounded-lg bg-base-200">
-                <.icon name="icon-[tabler--ban]" class="size-3.5 text-base-content/30" />
-              </span>
-              <span class="min-w-0 flex-1 truncate italic text-base-content/40">{opt.label}</span>
-            <% else %>
-              <span class="flex size-7 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-[11px] font-bold uppercase text-primary/70">
-                {String.first(opt.label || "?")}
-              </span>
-              <span class="min-w-0 flex-1 truncate">{opt.label}</span>
-            <% end %>
+            <span class="flex size-6 shrink-0 items-center justify-center rounded-md border border-primary/15 bg-primary/10 text-primary/70">
+              <.icon
+                name={
+                  if(is_nil(opt.value), do: "icon-[tabler--ban]", else: "icon-[tabler--building]")
+                }
+                class="size-3"
+              />
+            </span>
+            <span class={[
+              "min-w-0 flex-1 truncate",
+              is_nil(opt.value) && "italic text-base-content/40"
+            ]}>
+              {opt.label}
+            </span>
           </:option>
         </.live_select>
+        <span
+          id={"#{@field.id}-select-chevron"}
+          class="pointer-events-none absolute inset-y-0 right-2 z-20 flex items-center text-base-content/45"
+        >
+          <.icon
+            name="icon-[tabler--chevron-down]"
+            class="size-4 transition-transform duration-200 group-focus-within:rotate-180"
+          />
+        </span>
       </div>
     </div>
     """
   end
+
+  defp selected_live_select_option(_options, value) when value in [nil, ""], do: nil
+
+  defp selected_live_select_option(options, value) do
+    Enum.find(options, &(to_string(&1.value) == to_string(value)))
+  end
+
+  defp live_select_option_value(value, options) when is_binary(value) do
+    Enum.find_value(options, value, fn option ->
+      if to_string(option.value) == value, do: option.value
+    end)
+  end
+
+  defp live_select_option_value(value, _options), do: value
 
   @doc """
   Translates the errors for a field from a keyword list of errors.
@@ -1508,10 +1540,16 @@ defmodule KonevoWeb.CoreComponents do
   attr(:label, :string, default: nil)
   attr(:options, :list, default: [])
   attr(:required, :boolean, default: false)
+  attr(:show_errors, :boolean, default: nil)
 
   def contact_select(assigns) do
+    show_errors =
+      if is_nil(assigns.show_errors),
+        do: Phoenix.Component.used_input?(assigns.field),
+        else: assigns.show_errors
+
     errors =
-      if Phoenix.Component.used_input?(assigns.field) do
+      if show_errors do
         Enum.map(assigns.field.errors, &translate_error/1)
       else
         []
@@ -1524,46 +1562,61 @@ defmodule KonevoWeb.CoreComponents do
       assigns
       |> assign(:errors, errors)
       |> assign(:live_select_options, options)
+      |> assign(:selected_option, selected_live_select_option(options, assigns.field.value))
 
     ~H"""
     <div class="fieldset flex w-full flex-col gap-2">
-      <span :if={@label} class="label">{@label}</span>
-      <div class="relative w-full">
+      <span :if={@label} id={"#{@field.id}-label"} class="label">
+        {@label}<span :if={@required} class="ml-0.5 text-error" aria-hidden="true">*</span>
+      </span>
+      <div class="group relative w-full">
         <span class="pointer-events-none absolute inset-y-0 left-3 z-20 flex items-center">
-          <span class="flex size-6 items-center justify-center rounded-md bg-base-200">
-            <.icon name="icon-[tabler--user]" class="size-3.5 text-base-content/40" />
+          <span class="flex size-6 items-center justify-center rounded-md border border-primary/15 bg-primary/10 text-primary/70">
+            <.icon name="icon-[tabler--user]" class="size-3.5" />
           </span>
         </span>
         <.live_select
           field={@field}
           options={@live_select_options}
+          value={@selected_option || @field.value}
+          value_mapper={&live_select_option_value(&1, @live_select_options)}
           phx-target={@myself}
           placeholder={gettext("Search contacts…")}
           style={:none}
           debounce={150}
           update_min_len={1}
           container_class="relative w-full"
-          text_input_class="input w-full pl-11 pr-8 placeholder:text-base-content/40"
-          dropdown_class="absolute left-0 top-[calc(100%+4px)] z-[300] w-full max-h-60 overflow-y-auto rounded-lg border border-base-content/10 bg-base-100 shadow-lg shadow-black/[0.07]"
-          option_class="flex w-full items-center gap-3 px-2.5 py-2 text-sm"
-          available_option_class="cursor-pointer rounded-lg hover:bg-base-200/70"
-          selected_option_class="cursor-pointer rounded-lg hover:bg-base-200/70 font-medium"
+          text_input_class="input w-full cursor-pointer pl-11 pr-12 font-medium placeholder:text-base-content/40 focus:cursor-text"
+          dropdown_class="absolute left-0 top-[calc(100%+4px)] z-[300] w-full max-h-60 overflow-y-auto rounded-lg border border-base-content/10 bg-base-100 p-1 shadow-xl shadow-base-content/10"
+          option_class="flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-sm"
+          available_option_class="cursor-pointer rounded-md hover:bg-base-200/70"
+          selected_option_class="cursor-pointer rounded-md bg-base-200/70 font-semibold"
           active_option_class="bg-base-200"
         >
           <:option :let={opt}>
-            <%= if is_nil(opt.value) do %>
-              <span class="flex size-7 shrink-0 items-center justify-center rounded-lg bg-base-200">
-                <.icon name="icon-[tabler--ban]" class="size-3.5 text-base-content/30" />
-              </span>
-              <span class="min-w-0 flex-1 truncate italic text-base-content/40">{opt.label}</span>
-            <% else %>
-              <span class="flex size-7 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-[11px] font-bold uppercase text-primary/70">
-                {String.first(opt.label || "?")}
-              </span>
-              <span class="min-w-0 flex-1 truncate">{opt.label}</span>
-            <% end %>
+            <span class="flex size-6 shrink-0 items-center justify-center rounded-md border border-primary/15 bg-primary/10 text-primary/70">
+              <.icon
+                name={if(is_nil(opt.value), do: "icon-[tabler--ban]", else: "icon-[tabler--user]")}
+                class="size-3"
+              />
+            </span>
+            <span class={[
+              "min-w-0 flex-1 truncate",
+              is_nil(opt.value) && "italic text-base-content/40"
+            ]}>
+              {opt.label}
+            </span>
           </:option>
         </.live_select>
+        <span
+          id={"#{@field.id}-select-chevron"}
+          class="pointer-events-none absolute inset-y-0 right-2 z-20 flex items-center text-base-content/45"
+        >
+          <.icon
+            name="icon-[tabler--chevron-down]"
+            class="size-4 transition-transform duration-200 group-focus-within:rotate-180"
+          />
+        </span>
       </div>
       <.error :for={msg <- @errors}>{msg}</.error>
     </div>

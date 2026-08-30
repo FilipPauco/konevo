@@ -5,6 +5,7 @@
     <% seo_robots = assigns[:seo_robots] || "noindex, nofollow" %>
     <% seo_url = assigns[:seo_url] %>
     <% seo_image_url = assigns[:seo_image_url] || Seo.social_image_url() %>
+    <% seo_image_alt = assigns[:seo_image_alt] || Seo.social_image_alt() %>
     <% seo_json_ld = assigns[:seo_json_ld] %>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -26,10 +27,14 @@
       <meta property="og:description" content={seo_description} />
       <meta property="og:url" content={seo_url} />
       <meta property="og:image" content={seo_image_url} />
+      <meta property="og:image:width" content={to_string(Seo.social_image_width())} />
+      <meta property="og:image:height" content={to_string(Seo.social_image_height())} />
+      <meta property="og:image:alt" content={seo_image_alt} />
       <meta name="twitter:card" content="summary_large_image" />
       <meta name="twitter:title" content={assigns[:page_title] || "Konevo"} />
       <meta name="twitter:description" content={seo_description} />
       <meta name="twitter:image" content={seo_image_url} />
+      <meta name="twitter:image:alt" content={seo_image_alt} />
     <% end %>
     <%= if seo_json_ld do %>
       <script type="application/ld+json">

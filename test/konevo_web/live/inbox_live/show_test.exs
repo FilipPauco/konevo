@@ -53,6 +53,8 @@ defmodule KonevoWeb.InboxLive.ShowTest do
 
     {:ok, view, _html} = live(conn, ~p"/inbox/#{thread.id}")
 
+    assert has_element?(view, "#email-header-#{email.id}.px-3")
+    assert has_element?(view, "#email-body-#{email.id}")
     assert render(view) =~ "/uploads/mixed_attachment/#{file.id}"
   end
 
@@ -145,6 +147,8 @@ defmodule KonevoWeb.InboxLive.ShowTest do
     assert has_element?(view, "#reply-form")
     assert has_element?(view, "#reply-schedule-menu")
     assert has_element?(view, "#reply_scheduled_at")
+    assert has_element?(view, "#reply-composer button[aria-label='Schedule reply']")
+    assert has_element?(view, "#reply-composer button[aria-label='Send reply']")
   end
 
   test "opens guided AI drafting with an instruction and tone", %{conn: conn, org: org} do
@@ -236,6 +240,8 @@ defmodule KonevoWeb.InboxLive.ShowTest do
     assert has_element?(view, "#task-review-form")
     assert has_element?(view, "#create-selected-tasks")
     assert has_element?(view, "#create-task-from-thread")
+    assert has_element?(view, "[id^='task-review-priority-']")
+    assert has_element?(view, "#task-suggestions input.checkbox-xs")
     refute has_element?(view, "#add-manual-task-suggestion")
     refute has_element?(view, "#task-extraction-loading")
   end
@@ -243,6 +249,9 @@ defmodule KonevoWeb.InboxLive.ShowTest do
   test "resolves, reopens, and favorites a thread", %{conn: conn, org: org, scope: scope} do
     thread = insert(:email_thread, organization: org, subject: "Thread state actions")
     {:ok, view, _html} = live(conn, ~p"/inbox/#{thread.id}")
+
+    assert has_element?(view, "#thread-favorite-toggle[class~='text-base-content/70']")
+    assert has_element?(view, "button[phx-click='archive'][class~='text-base-content/70']")
 
     view |> render_hook("resolve", %{})
     refute Inbox.get_thread!(scope, thread.id).is_unresolved

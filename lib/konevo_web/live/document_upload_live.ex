@@ -173,7 +173,7 @@ defmodule KonevoWeb.DocumentUploadLive do
   end
 
   defp flash_result(socket, count, []) do
-    put_flash(socket, :success, "#{count} file(s) uploaded successfully")
+    put_flash(socket, :success, "#{count} file(s) uploaded")
   end
 
   defp flash_result(socket, count, failures) do

@@ -7,11 +7,18 @@ defmodule KonevoWeb.CalendarLive.Index do
   alias KonevoWeb.TasksLive.DrawerComponent
 
   @month_view_weeks 6
+  @calendar_source_keys ~w(task google_calendar deal_action deal_close)
 
   @impl true
   def mount(_params, _session, socket) do
     today = Date.utc_today()
     calendar_locale = calendar_locale()
+
+    default_view =
+      case get_connect_params(socket) do
+        %{"viewport" => "mobile"} -> "listWeek"
+        _ -> "dayGridMonth"
+      end
 
     socket =
       socket
@@ -19,6 +26,9 @@ defmodule KonevoWeb.CalendarLive.Index do
       |> assign(:loading, true)
       |> assign(:calendar_locale, calendar_locale)
       |> assign(:calendar_initial_date, Date.to_iso8601(today))
+      |> assign(:calendar_view, default_view)
+      |> assign(:calendar_sources, @calendar_source_keys)
+      |> assign(:initial_range_loaded?, false)
       |> assign(:initial_calendar_payload, initial_calendar_payload())
       |> assign(:visible_range_label, gettext("Loading visible range"))
       |> assign(:summary, empty_summary())
@@ -27,24 +37,53 @@ defmodule KonevoWeb.CalendarLive.Index do
       |> assign(:visible_starts_at, nil)
       |> assign(:visible_ends_at, nil)
 
-    {:ok,
-     if(connected?(socket),
-       do: preload_initial_range(socket, today, calendar_locale),
-       else: socket
+    {:ok, socket}
+  end
+
+  @impl true
+  def handle_params(params, _url, socket) do
+    date = calendar_date(Map.get(params, "date"))
+    sources = selected_calendar_sources(Map.get(params, "sources"))
+
+    socket =
+      socket
+      |> assign(:selected_task_id, Map.get(params, "task_id"))
+      |> assign(
+        :calendar_view,
+        calendar_view(Map.get(params, "view"), socket.assigns.calendar_view)
+      )
+      |> assign(:calendar_sources, sources)
+      |> assign(:calendar_initial_date, Date.to_iso8601(date))
+      |> maybe_preload_initial_range(date)
+
+    {:noreply, socket}
+  end
+
+  def handle_event("calendar_sources_changed", %{"sources" => sources}, socket) do
+    sources = selected_calendar_sources(sources)
+
+    {:noreply,
+     push_patch(socket,
+       to:
+         calendar_path(
+           socket.assigns.calendar_view,
+           socket.assigns.calendar_initial_date,
+           sources
+         )
      )}
   end
 
   @impl true
-  def handle_params(%{"task_id" => task_id}, _url, socket) do
-    {:noreply, assign(socket, :selected_task_id, task_id)}
-  end
-
-  def handle_params(_params, _url, socket) do
-    {:noreply, assign(socket, :selected_task_id, nil)}
-  end
-
-  @impl true
   def handle_event("calendar_range_changed", params, socket) do
+    request_id = Map.get(params, "request_id")
+    view = calendar_view(Map.get(params, "view"), socket.assigns.calendar_view)
+
+    date =
+      params
+      |> Map.get("date")
+      |> calendar_date()
+      |> Date.to_iso8601()
+
     with {:ok, starts_at, ends_at} <- parse_range(params),
          {:ok, events, summary} <-
            load_calendar_items(socket.assigns.current_scope, starts_at, ends_at) do
@@ -55,7 +94,12 @@ defmodule KonevoWeb.CalendarLive.Index do
         |> assign(:visible_ends_at, ends_at)
         |> assign(:visible_range_label, format_range(starts_at, ends_at))
         |> assign(:summary, summary)
-        |> push_event("calendar:events", %{events: events})
+        |> push_event("calendar:events", %{
+          events: events,
+          range: calendar_payload_range(starts_at, ends_at),
+          request_id: request_id
+        })
+        |> maybe_patch_calendar_state(view, date)
 
       {:noreply, socket}
     else
@@ -63,12 +107,14 @@ defmodule KonevoWeb.CalendarLive.Index do
         {:noreply,
          socket
          |> assign(:loading, false)
+         |> push_event("calendar:events", %{request_id: request_id})
          |> put_flash(:error, gettext("You cannot view calendar items"))}
 
       _error ->
         {:noreply,
          socket
          |> assign(:loading, false)
+         |> push_event("calendar:events", %{request_id: request_id})
          |> put_flash(:error, gettext("Failed to load calendar items"))}
     end
   end
@@ -76,7 +122,16 @@ defmodule KonevoWeb.CalendarLive.Index do
   def handle_event("open_calendar_task", %{"id" => task_id}, socket) do
     Tasks.get_task!(socket.assigns.current_scope, task_id)
 
-    {:noreply, push_patch(socket, to: ~p"/calendar/tasks/#{task_id}")}
+    {:noreply,
+     push_patch(socket,
+       to:
+         calendar_task_path(
+           task_id,
+           socket.assigns.calendar_view,
+           socket.assigns.calendar_initial_date,
+           socket.assigns.calendar_sources
+         )
+     )}
   rescue
     Ecto.NoResultsError ->
       {:noreply, put_flash(socket, :error, gettext("Task not found"))}
@@ -101,7 +156,64 @@ defmodule KonevoWeb.CalendarLive.Index do
     <Layouts.app flash={@flash} current_scope={@current_scope} current_path={@current_path}>
       <Layouts.page title={@page_title}>
         <div class="space-y-4">
-          <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <div
+            id="calendar-mobile-summary"
+            phx-hook="CollapsiblePanel"
+            data-open="false"
+            class="calendar-mobile-summary overflow-hidden rounded-lg border border-base-content/10 bg-base-100 shadow-sm sm:hidden"
+          >
+            <button
+              type="button"
+              data-collapsible-toggle
+              aria-expanded="false"
+              class="flex w-full cursor-pointer items-center justify-between gap-3 px-3 py-2.5 text-left text-sm font-semibold text-base-content"
+            >
+              <span class="flex items-center gap-2">
+                <span class="flex size-7 items-center justify-center rounded-md bg-primary/10 text-primary">
+                  <.icon name="icon-[tabler--chart-bar]" class="size-4" />
+                </span>
+                {gettext("Calendar overview")}
+              </span>
+              <.icon
+                name="icon-[tabler--chevron-down]"
+                class="calendar-mobile-summary-chevron size-4 text-base-content/45"
+              />
+            </button>
+            <div data-collapsible-content class="calendar-mobile-summary-content">
+              <div class="grid grid-cols-4 border-t border-base-content/10 p-2">
+                <.mobile_summary_metric
+                  icon="icon-[tabler--checkbox]"
+                  label={gettext("Tasks")}
+                  value={@summary.tasks}
+                  tone="task"
+                  loading={@loading}
+                />
+                <.mobile_summary_metric
+                  icon="icon-[tabler--users]"
+                  label={gettext("Contacts")}
+                  value={@summary.contacts}
+                  tone="contact"
+                  loading={@loading}
+                />
+                <.mobile_summary_metric
+                  icon="icon-[tabler--building]"
+                  label={gettext("Companies")}
+                  value={@summary.companies}
+                  tone="company"
+                  loading={@loading}
+                />
+                <.mobile_summary_metric
+                  icon="icon-[tabler--alert-circle]"
+                  label={gettext("Overdue")}
+                  value={@summary.overdue}
+                  tone="risk"
+                  loading={@loading}
+                />
+              </div>
+            </div>
+          </div>
+
+          <div class="hidden gap-3 sm:grid sm:grid-cols-2 xl:grid-cols-4">
             <.summary_card
               id="calendar-summary-tasks"
               icon="icon-[tabler--checkbox]"
@@ -136,29 +248,32 @@ defmodule KonevoWeb.CalendarLive.Index do
             />
           </div>
 
-          <div class="h-[calc(100vh-17rem)]">
+          <div class="h-[34rem] sm:h-[calc(100vh-17rem)]">
             <section
               id="planner-calendar-shell"
               phx-hook="FullCalendarPlanner"
               phx-update="ignore"
               data-calendar-locale={@calendar_locale}
               data-calendar-initial-date={@calendar_initial_date}
+              data-calendar-view={@calendar_view}
+              data-calendar-enabled-sources={Jason.encode!(@calendar_sources)}
               data-initial-calendar={@initial_calendar_payload}
               data-event-singular={gettext("1 event visible")}
               data-event-plural-label={gettext("events visible")}
+              data-loading-events-title={gettext("Loading events")}
               data-no-events-title={gettext("No planned work in this range")}
               data-no-events-subtitle={gettext("Try another view or date range.")}
               class="flex h-full flex-col overflow-hidden rounded-lg border border-base-content/10 bg-base-100 shadow-sm"
             >
-              <div class="flex flex-col gap-3 border-b border-base-content/10 p-3 lg:flex-row lg:items-center lg:justify-between">
-                <div class="flex min-w-0 items-center gap-3">
-                  <div class="flex size-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                    <.icon name="icon-[tabler--calendar-week]" class="size-5" />
+              <div class="flex flex-col gap-2 border-b border-base-content/10 p-2.5 sm:gap-3 sm:p-3 lg:flex-row lg:items-center lg:justify-between">
+                <div class="flex min-w-0 items-center gap-2.5 sm:gap-3">
+                  <div class="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary sm:size-10">
+                    <.icon name="icon-[tabler--calendar-week]" class="size-4 sm:size-5" />
                   </div>
                   <div class="min-w-0">
                     <h2
                       data-calendar-title
-                      class="truncate text-base font-semibold text-base-content sm:text-lg"
+                      class="truncate text-sm font-semibold text-base-content sm:text-lg"
                     >
                       {gettext("Planner")}
                     </h2>
@@ -168,12 +283,12 @@ defmodule KonevoWeb.CalendarLive.Index do
                   </div>
                 </div>
 
-                <div class="flex flex-wrap items-center gap-2">
+                <div class="flex items-center justify-between gap-2 lg:justify-end">
                   <div class="join">
                     <button
                       type="button"
                       data-calendar-action="prev"
-                      class="calendar-toolbar-button btn btn-sm join-item border-base-content/15 bg-base-100"
+                      class="calendar-toolbar-button btn btn-xs join-item border-base-content/15 bg-base-100 sm:btn-sm"
                       aria-label={gettext("Previous range")}
                     >
                       <.icon name="icon-[tabler--chevron-left]" class="size-4" />
@@ -181,21 +296,32 @@ defmodule KonevoWeb.CalendarLive.Index do
                     <button
                       type="button"
                       data-calendar-action="today"
-                      class="calendar-toolbar-button btn btn-sm join-item border-base-content/15 bg-base-100 px-3"
+                      class="calendar-toolbar-button btn btn-xs join-item border-base-content/15 bg-base-100 px-2.5 sm:btn-sm sm:px-3"
                     >
                       {gettext("Today")}
                     </button>
                     <button
                       type="button"
                       data-calendar-action="next"
-                      class="calendar-toolbar-button btn btn-sm join-item border-base-content/15 bg-base-100"
+                      class="calendar-toolbar-button btn btn-xs join-item border-base-content/15 bg-base-100 sm:btn-sm"
                       aria-label={gettext("Next range")}
                     >
                       <.icon name="icon-[tabler--chevron-right]" class="size-4" />
                     </button>
                   </div>
 
-                  <div class="join">
+                  <div class="sm:hidden">
+                    <select
+                      id="calendar-mobile-view-select"
+                      data-calendar-view-select
+                      class="select select-xs h-7 min-h-7 border-base-content/15 bg-base-100 text-xs font-semibold"
+                      aria-label={gettext("Calendar view")}
+                    >
+                      <option :for={{view, label} <- calendar_views()} value={view}>{label}</option>
+                    </select>
+                  </div>
+
+                  <div class="hidden sm:join">
                     <button
                       :for={{view, label} <- calendar_views()}
                       type="button"
@@ -209,21 +335,37 @@ defmodule KonevoWeb.CalendarLive.Index do
                 </div>
               </div>
 
-              <div class="flex flex-wrap items-center gap-2 border-b border-base-content/10 px-3 py-2">
-                <%= for {source, label, icon} <- calendar_sources() do %>
-                  <button
-                    type="button"
-                    data-calendar-source={source}
-                    data-active="true"
-                    class="calendar-source-button inline-flex items-center gap-1.5 rounded-md border border-base-content/15 bg-base-100 px-2.5 py-1.5 text-xs font-semibold text-base-content/70 transition-all hover:border-primary/30 hover:text-primary"
-                  >
-                    <.icon name={icon} class="size-3.5" />
-                    {label}
-                  </button>
-                <% end %>
+              <div class="border-b border-base-content/10 px-2.5 py-2 sm:px-3">
+                <button
+                  id="calendar-mobile-filters-toggle"
+                  type="button"
+                  data-calendar-source-toggle
+                  class="btn btn-xs gap-1.5 border border-base-content/20 bg-base-100 text-base-content hover:border-base-content/30 sm:hidden"
+                  aria-expanded="false"
+                >
+                  <.icon name="icon-[tabler--adjustments-horizontal]" class="size-3.5" />
+                  {gettext("Filters")}
+                  <.icon name="icon-[tabler--chevron-down]" class="size-3.5 opacity-55" />
+                </button>
+                <div
+                  id="calendar-source-panel"
+                  class="hidden w-full flex-wrap items-center gap-2 rounded-lg border border-base-content/20 bg-base-100 p-2 sm:flex sm:rounded-none sm:border-0 sm:bg-transparent sm:p-0"
+                >
+                  <%= for {source, label, icon} <- calendar_sources() do %>
+                    <button
+                      type="button"
+                      data-calendar-source={source}
+                      data-active={to_string(source in @calendar_sources)}
+                      class="calendar-source-button inline-flex items-center gap-1.5 rounded-md border border-base-content/20 bg-base-100 px-2.5 py-1.5 text-xs font-semibold text-base-content transition-all hover:border-base-content/30"
+                    >
+                      <.icon name={icon} class="size-3.5" />
+                      {label}
+                    </button>
+                  <% end %>
+                </div>
               </div>
 
-              <div class="min-h-0 flex-1 p-3">
+              <div class="min-h-0 flex-1 p-2 sm:p-3">
                 <div data-calendar class="konevo-fullcalendar h-full"></div>
               </div>
             </section>
@@ -238,7 +380,7 @@ defmodule KonevoWeb.CalendarLive.Index do
         current_scope={@current_scope}
         open={@live_action == :task}
         refresh={@drawer_refresh}
-        return_to={~p"/calendar"}
+        return_to={calendar_path(@calendar_view, @calendar_initial_date, @calendar_sources)}
       />
     </Layouts.app>
     """
@@ -271,6 +413,37 @@ defmodule KonevoWeb.CalendarLive.Index do
     """
   end
 
+  attr(:icon, :string, required: true)
+  attr(:label, :string, required: true)
+  attr(:value, :integer, required: true)
+  attr(:tone, :string, required: true)
+  attr(:loading, :boolean, default: false)
+
+  defp mobile_summary_metric(assigns) do
+    ~H"""
+    <div class="flex min-w-0 flex-col items-center gap-1 border-r border-base-content/10 px-1 text-center last:border-r-0">
+      <span class={[
+        "flex size-6 items-center justify-center rounded-md",
+        mobile_summary_tone_class(@tone)
+      ]}>
+        <.icon name={@icon} class="size-3.5" />
+      </span>
+      <%= if @loading do %>
+        <span class="skeleton h-4 w-5 rounded-sm" />
+      <% else %>
+        <span class="text-sm font-bold leading-none text-base-content">{@value}</span>
+      <% end %>
+      <span class="truncate text-[10px] leading-none text-base-content/50">{@label}</span>
+    </div>
+    """
+  end
+
+  defp mobile_summary_tone_class("task"), do: "bg-primary/10 text-primary"
+  defp mobile_summary_tone_class("contact"), do: "bg-info/10 text-info"
+  defp mobile_summary_tone_class("company"), do: "bg-secondary/10 text-secondary"
+  defp mobile_summary_tone_class("risk"), do: "bg-error/10 text-error"
+  defp mobile_summary_tone_class(_tone), do: "bg-base-200 text-base-content/60"
+
   defp calendar_views do
     [
       {"dayGridMonth", gettext("Month")},
@@ -278,6 +451,49 @@ defmodule KonevoWeb.CalendarLive.Index do
       {"timeGridDay", gettext("Day")},
       {"listWeek", gettext("List")}
     ]
+  end
+
+  defp calendar_view("month", _default), do: "dayGridMonth"
+  defp calendar_view("week", _default), do: "timeGridWeek"
+  defp calendar_view("day", _default), do: "timeGridDay"
+  defp calendar_view("list", _default), do: "listWeek"
+  defp calendar_view("agenda", _default), do: "listDay"
+  defp calendar_view("dayGridMonth", _default), do: "dayGridMonth"
+  defp calendar_view("timeGridWeek", _default), do: "timeGridWeek"
+  defp calendar_view("timeGridDay", _default), do: "timeGridDay"
+  defp calendar_view("listWeek", _default), do: "listWeek"
+  defp calendar_view("listDay", _default), do: "listDay"
+  defp calendar_view(_view, default), do: default
+
+  defp calendar_view_param("dayGridMonth"), do: "month"
+  defp calendar_view_param("timeGridWeek"), do: "week"
+  defp calendar_view_param("timeGridDay"), do: "day"
+  defp calendar_view_param("listWeek"), do: "list"
+  defp calendar_view_param("listDay"), do: "agenda"
+
+  defp calendar_path(view, date, sources) do
+    ~p"/calendar?#{calendar_query_params(view, date, sources)}"
+  end
+
+  defp calendar_task_path(task_id, view, date, sources) do
+    ~p"/calendar/tasks/#{task_id}?#{calendar_query_params(view, date, sources)}"
+  end
+
+  defp maybe_patch_calendar_state(
+         %{assigns: %{calendar_view: view, calendar_initial_date: date}} = socket,
+         view,
+         date
+       ),
+       do: socket
+
+  defp maybe_patch_calendar_state(socket, view, date) do
+    path =
+      case socket.assigns.selected_task_id do
+        nil -> calendar_path(view, date, socket.assigns.calendar_sources)
+        task_id -> calendar_task_path(task_id, view, date, socket.assigns.calendar_sources)
+      end
+
+    push_patch(socket, to: path)
   end
 
   defp calendar_sources do
@@ -289,6 +505,36 @@ defmodule KonevoWeb.CalendarLive.Index do
     ]
   end
 
+  defp calendar_query_params(view, date, sources) do
+    params = [view: calendar_view_param(view), date: date]
+
+    if sources == @calendar_source_keys do
+      params
+    else
+      Keyword.put(params, :sources, Enum.join(sources, ","))
+    end
+  end
+
+  defp selected_calendar_sources(nil), do: @calendar_source_keys
+
+  defp selected_calendar_sources(sources) when is_list(sources) do
+    normalize_calendar_sources(sources)
+  end
+
+  defp selected_calendar_sources(sources) when is_binary(sources) do
+    sources
+    |> String.split(",", trim: true)
+    |> normalize_calendar_sources()
+  end
+
+  defp selected_calendar_sources(_sources), do: @calendar_source_keys
+
+  defp normalize_calendar_sources(sources) do
+    selected = Enum.filter(@calendar_source_keys, &(&1 in sources))
+
+    if sources == [] or selected != [], do: selected, else: @calendar_source_keys
+  end
+
   defp parse_range(%{"start" => start_value, "end" => end_value}) do
     with {:ok, starts_at} <- parse_datetime(start_value),
          {:ok, ends_at} <- parse_datetime(end_value) do
@@ -297,6 +543,15 @@ defmodule KonevoWeb.CalendarLive.Index do
   end
 
   defp parse_range(_params), do: {:error, :invalid_range}
+
+  defp calendar_date(value) when is_binary(value) do
+    case Date.from_iso8601(value) do
+      {:ok, date} -> date
+      {:error, _reason} -> Date.utc_today()
+    end
+  end
+
+  defp calendar_date(_value), do: Date.utc_today()
 
   defp parse_datetime(value) when is_binary(value) do
     case DateTime.from_iso8601(value) do
@@ -438,12 +693,24 @@ defmodule KonevoWeb.CalendarLive.Index do
     %{tasks: 0, contacts: 0, companies: 0, overdue: 0, total: 0}
   end
 
-  defp preload_initial_range(socket, today, calendar_locale) do
-    {starts_at, ends_at} = initial_month_range(today, calendar_locale)
+  defp maybe_preload_initial_range(%{assigns: %{initial_range_loaded?: true}} = socket, _date),
+    do: socket
+
+  defp maybe_preload_initial_range(socket, date) do
+    if connected?(socket) do
+      preload_initial_range(socket, date, socket.assigns.calendar_locale)
+    else
+      socket
+    end
+  end
+
+  defp preload_initial_range(socket, date, calendar_locale) do
+    {starts_at, ends_at} = initial_month_range(date, calendar_locale)
 
     case load_calendar_items(socket.assigns.current_scope, starts_at, ends_at) do
       {:ok, events, summary} ->
         socket
+        |> assign(:initial_range_loaded?, true)
         |> assign(:loading, false)
         |> assign(:visible_starts_at, starts_at)
         |> assign(:visible_ends_at, ends_at)
@@ -453,11 +720,13 @@ defmodule KonevoWeb.CalendarLive.Index do
 
       {:error, :unauthorized} ->
         socket
+        |> assign(:initial_range_loaded?, true)
         |> assign(:loading, false)
         |> put_flash(:error, gettext("You cannot view calendar items"))
 
       _error ->
         socket
+        |> assign(:initial_range_loaded?, true)
         |> assign(:loading, false)
         |> put_flash(:error, gettext("Failed to load calendar items"))
     end

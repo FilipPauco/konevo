@@ -5,7 +5,6 @@ defmodule KonevoWeb.CompaniesLive.IndexTest do
   import Konevo.Factory
   import Konevo.CompaniesFixtures
 
-  alias Konevo.Accounts
   alias Konevo.Accounts.Scope
   alias Konevo.Companies
 
@@ -28,7 +27,16 @@ defmodule KonevoWeb.CompaniesLive.IndexTest do
     _html = render_async(view)
     assert has_element?(view, "#company-search-form")
     assert has_element?(view, "#companies-table")
-    assert has_element?(view, "#companies-footer")
+    assert has_element?(view, "#companies-empty")
+    refute has_element?(view, "#companies-footer")
+  end
+
+  test "uses the card surface when cards are selected", %{conn: conn} do
+    {:ok, view, _html} = live(conn, ~p"/companies")
+    _ = render_async(view)
+    view |> element("#companies-view-cards") |> render_click()
+
+    assert has_element?(view, "#companies-cards-empty.bg-base-100")
   end
 
   test "lists only tenant companies and filters by search", %{conn: conn, scope: scope} do
@@ -42,19 +50,27 @@ defmodule KonevoWeb.CompaniesLive.IndexTest do
 
     assert has_element?(view, "#companies a[href='/companies/#{acme.slug}']")
     refute has_element?(view, "#companies a[href='/companies/#{northwind.slug}']")
+    assert has_element?(view, "#companies-clear-filters")
+    assert has_element?(view, "#companies-filter-panel #companies-clear-filters")
+    assert has_element?(view, "#companies-archive-filter-mobile")
+
+    view |> element("#companies-clear-filters") |> render_click()
+    _html = render_async(view)
+
+    assert has_element?(view, "#companies a[href='/companies/#{northwind.slug}']")
+    refute has_element?(view, "#companies-clear-filters")
   end
 
   test "shows LinkedIn icon in cards when company has a LinkedIn URL", %{
     conn: conn,
     scope: scope,
-    user: user
+    user: _user
   } do
-    {:ok, _user} = Accounts.update_user_view_preferences(user, %{companies_view_mode: "card"})
-
     linkedin_url = "https://www.linkedin.com/company/card-company"
     company = company_fixture(scope, %{linkedin_url: linkedin_url})
     {:ok, view, _html} = live(conn, ~p"/companies")
     _html = render_async(view)
+    view |> element("#companies-view-cards") |> render_click()
 
     assert has_element?(
              view,
@@ -65,13 +81,12 @@ defmodule KonevoWeb.CompaniesLive.IndexTest do
   test "hides LinkedIn icon in cards when company LinkedIn URL is blank", %{
     conn: conn,
     scope: scope,
-    user: user
+    user: _user
   } do
-    {:ok, _user} = Accounts.update_user_view_preferences(user, %{companies_view_mode: "card"})
-
     company = company_fixture(scope, %{linkedin_url: "  "})
     {:ok, view, _html} = live(conn, ~p"/companies")
     _html = render_async(view)
+    view |> element("#companies-view-cards") |> render_click()
 
     refute has_element?(view, "#companies-cards #company-card-linkedin-#{company.id}")
   end
@@ -107,6 +122,27 @@ defmodule KonevoWeb.CompaniesLive.IndexTest do
     |> render_click()
 
     refute has_element?(edit_view, "[phx-value-id='#{company.id}']")
+    assert has_element?(edit_view, "#flash-success", "Company deleted")
+  end
+
+  test "preserves filters when editing a company", %{conn: conn, scope: scope} do
+    company = company_fixture(scope, %{name: "Filtered edit"})
+    {:ok, _company} = Companies.archive_company(scope, company)
+
+    {:ok, view, _html} = live(conn, ~p"/companies?archived=archived")
+    _ = render_async(view)
+
+    view
+    |> element("a[href='/companies/#{company.slug}/edit/inline?archived=archived']")
+    |> render_click()
+
+    assert_patch(view, ~p"/companies/#{company}/edit/inline?archived=archived")
+
+    view
+    |> form("#company-form", company: %{name: "Filtered update"})
+    |> render_submit()
+
+    assert_patch(view, ~p"/companies?archived=archived")
   end
 
   test "filters companies by industry", %{conn: conn, scope: scope} do

@@ -2,7 +2,7 @@ defmodule KonevoWeb.Seo do
   @moduledoc false
 
   @site_name "Konevo"
-  @default_description "Self-hosted AI CRM for Gmail: turn customer email into contacts, tasks, and reviewable follow-ups."
+  @default_description "Self-hosted AI inbox: turn customer conversations into contacts, tasks, and reviewable follow-ups."
 
   def default_description, do: @default_description
 
@@ -13,6 +13,9 @@ defmodule KonevoWeb.Seo do
   end
 
   def social_image_url, do: page_url("/images/landing_small.png")
+  def social_image_width, do: 1626
+  def social_image_height, do: 913
+  def social_image_alt, do: "Konevo inbox workspace preview"
 
   def software_application_json_ld do
     %{

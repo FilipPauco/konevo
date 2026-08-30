@@ -244,6 +244,22 @@ defmodule Konevo.ContactsTest do
     end
   end
 
+  describe "find_or_create_by_email/2" do
+    test "creates a lead contact from a new email and reuses it", %{scope: scope} do
+      assert {:ok, created} = Contacts.find_or_create_by_email(scope, "Martin.Smith@example.com")
+      assert created.email == "martin.smith@example.com"
+      assert created.first_name == "Martin"
+      assert created.status == :lead
+
+      assert {:ok, existing} = Contacts.find_or_create_by_email(scope, "MARTIN.SMITH@example.com")
+      assert existing.id == created.id
+    end
+
+    test "rejects an invalid email", %{scope: scope} do
+      assert {:error, :invalid_email} = Contacts.find_or_create_by_email(scope, "not-an-email")
+    end
+  end
+
   # ---------------------------------------------------------------------------
   # update_contact/3
   # ---------------------------------------------------------------------------

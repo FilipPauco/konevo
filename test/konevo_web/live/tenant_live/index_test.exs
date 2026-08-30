@@ -26,7 +26,8 @@ defmodule KonevoWeb.TenantLive.IndexTest do
 
     assert has_element?(view, "#new-tenant-button")
     assert has_element?(view, "#tenant-search-form")
-    assert has_element?(view, "#tenant-table")
+    assert has_element?(view, "#tenant-table.mobile-data-table-container")
+    assert has_element?(view, "#tenant-table .mobile-data-table")
   end
 
   test "searches tenants by organization name", %{conn: conn, scope: scope} do
@@ -51,6 +52,12 @@ defmodule KonevoWeb.TenantLive.IndexTest do
     assert has_element?(view, "#tenant-slug-#{invitation.id}", slug)
     assert has_element?(view, "#tenant-status-#{invitation.id}", "Pending")
     assert has_element?(view, "#tenant-status-#{invitation.id} [class*='clock-hour-4']")
+    assert has_element?(view, "#tenant-clear-filters")
+
+    view |> element("#tenant-clear-filters") |> render_click()
+    _ = render_async(view)
+
+    refute has_element?(view, "#tenant-clear-filters")
 
     view
     |> element("[phx-click='archive_tenant'][phx-value-id='#{invitation.id}']")

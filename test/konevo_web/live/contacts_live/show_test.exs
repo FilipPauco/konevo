@@ -50,6 +50,22 @@ defmodule KonevoWeb.ContactsLive.ShowTest do
       assert html =~ "https://www.linkedin.com/in/jane-doe"
     end
 
+    test "returns to the filtered contacts list", %{conn: conn, scope: scope} do
+      contact = contact_fixture(scope, %{first_name: "Jane", last_name: "Doe"})
+
+      {:ok, view, _html} =
+        live(conn, ~p"/contacts/#{contact}?#{[return_to: "/contacts?search=jane"]}")
+
+      assert has_element?(view, "#contact-back-link a[href='/contacts?search=jane']")
+    end
+
+    test "uses the contacts list for an invalid return path", %{conn: conn, scope: scope} do
+      contact = contact_fixture(scope)
+      {:ok, view, _html} = live(conn, ~p"/contacts/#{contact}?return_to=https://example.com")
+
+      assert has_element?(view, "#contact-back-link a[href='/contacts']")
+    end
+
     test "renders linked task timeline", %{conn: conn, scope: scope} do
       contact = contact_fixture(scope)
       task = task_fixture(scope, %{title: "Call this contact", contact: contact})
@@ -107,6 +123,30 @@ defmodule KonevoWeb.ContactsLive.ShowTest do
       assert task
       assert has_element?(view, "#contact-task-timeline-task-#{task.id}")
       refute has_element?(view, "#contact-task-modal")
+    end
+
+    test "keeps the preselected contact label when validating a new task", %{
+      conn: conn,
+      scope: scope
+    } do
+      contact =
+        contact_fixture(scope, %{
+          first_name: "Jane",
+          last_name: "Doe",
+          email: "jane@example.com"
+        })
+
+      {:ok, view, _html} = live(conn, ~p"/contacts/#{contact.id}")
+      view |> element("#contact-add-task") |> render_click()
+
+      view
+      |> form("#task-form", task: %{title: "Follow up", contact_id: contact.id})
+      |> render_change()
+
+      assert has_element?(
+               view,
+               "#task_contact_id_live_select_component input[type='text'][value='Jane Doe (jane@example.com)']"
+             )
     end
 
     test "raises for a contact belonging to another org", %{conn: conn} do

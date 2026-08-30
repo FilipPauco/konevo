@@ -19,8 +19,9 @@ const TASK_TYPE_ICONS = {
   task: "icon-[tabler--menu-2]",
 }
 
-const EVENT_MIN_HEIGHT = 82
+const EVENT_MIN_HEIGHT = 64
 const CURRENT_TIME_SCROLL_OFFSET_MINUTES = 60
+const CALENDAR_SOURCES = ["task", "google_calendar", "deal_action", "deal_close"]
 
 const FullCalendarPlanner = {
   mounted() {
@@ -30,17 +31,23 @@ const FullCalendarPlanner = {
     this.initialPayloadKey = this.el.dataset.initialCalendar || ""
     this.initialLoadedRange = initialPayload.range
     this.initialRangeConsumed = false
-    this.enabledSources = new Set(["task", "google_calendar", "deal_action", "deal_close"])
+    this.rangeLoading = false
+    this.rangeRequestSequence = 0
+    this.pendingRangeRequestId = null
+    this.enabledSources = this.readEnabledSources()
     this.calendarEl = this.el.querySelector("[data-calendar]")
     this.titleEl = this.el.querySelector("[data-calendar-title]")
     this.countEl = this.el.querySelector("[data-calendar-count]")
     this.viewButtons = [...this.el.querySelectorAll("[data-calendar-view]")]
+    this.viewSelect = this.el.querySelector("[data-calendar-view-select]")
     this.sourceButtons = [...this.el.querySelectorAll("[data-calendar-source]")]
+    this.sourceToggle = this.el.querySelector("[data-calendar-source-toggle]")
+    this.sourcePanel = this.el.querySelector("#calendar-source-panel")
 
     this.calendar = new Calendar(this.calendarEl, {
       plugins: [themePlugin, dayGridPlugin, timeGridPlugin, listPlugin, interactionPlugin],
       locale: this.locale(),
-      initialView: "dayGridMonth",
+      initialView: this.el.dataset.calendarView || "dayGridMonth",
       initialDate: this.el.dataset.calendarInitialDate || undefined,
       headerToolbar: false,
       height: "100%",
@@ -53,6 +60,7 @@ const FullCalendarPlanner = {
       eventDisplay: "block",
       eventMinHeight: EVENT_MIN_HEIGHT,
       eventShortHeight: 0,
+      slotEventOverlap: false,
       views: {
         timeGridWeek: {
           eventMinHeight: EVENT_MIN_HEIGHT,
@@ -74,14 +82,26 @@ const FullCalendarPlanner = {
       eventClass: info => this.eventClasses(info),
       eventContent: info => this.eventContent(info),
       eventClick: info => this.openEvent(info),
+      dateClick: info => this.openCompactMonthDay(info),
       datesSet: info => this.syncRange(info),
       events: (_fetchInfo, successCallback) => successCallback(this.visibleEvents()),
     })
 
     this.bindToolbar()
     this.handleEvent("calendar:events", payload => {
-      this.events = Array.isArray(payload.events) ? payload.events : []
+      if (Array.isArray(payload.events)) this.events = payload.events
+
+      if (
+        (payload.request_id && payload.request_id === this.pendingRangeRequestId) ||
+        this.rangeMatchesCurrent(payload.range)
+      ) {
+        this.rangeLoading = false
+        this.pendingRangeRequestId = null
+      }
+
       this.calendar.refetchEvents()
+      this.refreshEmptyStates()
+      requestAnimationFrame(() => this.refreshEmptyStates())
       this.updateVisibleCount()
     })
 
@@ -95,6 +115,8 @@ const FullCalendarPlanner = {
   },
 
   updated() {
+    this.applyEnabledSources()
+    this.applyCalendarState()
     this.applyInitialPayload()
   },
 
@@ -142,6 +164,31 @@ const FullCalendarPlanner = {
     }
   },
 
+  readEnabledSources() {
+    try {
+      const sources = JSON.parse(this.el.dataset.calendarEnabledSources || "[]")
+      if (!Array.isArray(sources)) return new Set(CALENDAR_SOURCES)
+
+      return new Set(CALENDAR_SOURCES.filter(source => sources.includes(source)))
+    } catch (_error) {
+      return new Set(CALENDAR_SOURCES)
+    }
+  },
+
+  applyEnabledSources() {
+    const sources = this.readEnabledSources()
+    const changed = !CALENDAR_SOURCES.every(source => sources.has(source) === this.enabledSources.has(source))
+
+    if (!changed) return
+
+    this.enabledSources = sources
+    this.sourceButtons.forEach(button => {
+      button.dataset.active = String(this.enabledSources.has(button.dataset.calendarSource))
+    })
+    this.calendar?.refetchEvents()
+    this.updateVisibleCount()
+  },
+
   applyInitialPayload() {
     const payloadKey = this.el.dataset.initialCalendar || ""
     if (!this.calendar || payloadKey === this.initialPayloadKey) return
@@ -157,29 +204,63 @@ const FullCalendarPlanner = {
     this.updateVisibleCount()
   },
 
+  applyCalendarState() {
+    const view = this.el.dataset.calendarView || "dayGridMonth"
+    const date = this.el.dataset.calendarInitialDate
+    const viewChanged = this.calendar && this.calendar.view.type !== view
+    const dateChanged = this.calendar && date && this.dateKey(this.calendar.getDate()) !== date
+
+    if (!this.calendar || (!viewChanged && !dateChanged)) return
+
+    this.beginRangeLoad()
+    if (viewChanged) {
+      this.calendar.changeView(view, date)
+    } else {
+      this.calendar.gotoDate(date)
+    }
+
+    this.scrollToRelevantTime()
+  },
+
   validRange(range) {
     return Boolean(range?.start && range?.end)
   },
 
   bindToolbar() {
     this.el.querySelector("[data-calendar-action='prev']")?.addEventListener("click", () => {
+      this.beginRangeLoad()
       this.calendar.prev()
     })
 
     this.el.querySelector("[data-calendar-action='next']")?.addEventListener("click", () => {
+      this.beginRangeLoad()
       this.calendar.next()
     })
 
     this.el.querySelector("[data-calendar-action='today']")?.addEventListener("click", () => {
+      this.beginRangeLoad()
       this.calendar.today()
       this.scrollToRelevantTime()
     })
 
     this.viewButtons.forEach(button => {
       button.addEventListener("click", () => {
+        this.beginRangeLoad()
         this.calendar.changeView(button.dataset.calendarView)
         this.scrollToRelevantTime()
       })
+    })
+
+    this.viewSelect?.addEventListener("change", event => {
+      this.beginRangeLoad()
+      this.calendar.changeView(event.target.value)
+      this.scrollToRelevantTime()
+    })
+
+    this.sourceToggle?.addEventListener("click", () => {
+      const expanded = this.sourceToggle.getAttribute("aria-expanded") === "true"
+      this.sourceToggle.setAttribute("aria-expanded", String(!expanded))
+      this.sourcePanel?.classList.toggle("hidden", expanded)
     })
 
     this.sourceButtons.forEach(button => {
@@ -195,6 +276,7 @@ const FullCalendarPlanner = {
 
         this.calendar.refetchEvents()
         this.updateVisibleCount()
+        this.pushEvent("calendar_sources_changed", {sources: [...this.enabledSources]})
       })
     })
   },
@@ -209,6 +291,10 @@ const FullCalendarPlanner = {
       button.classList.toggle("btn-active", active)
     })
 
+    if (this.viewSelect) {
+      this.viewSelect.value = info.view.type === "listDay" ? "listWeek" : info.view.type
+    }
+
     if (
       this.initialLoadedRange &&
       !this.initialRangeConsumed &&
@@ -220,10 +306,15 @@ const FullCalendarPlanner = {
     }
 
     this.initialRangeConsumed = true
+    const requestId = `range-${++this.rangeRequestSequence}`
+    this.pendingRangeRequestId = requestId
+    this.beginRangeLoad()
     this.pushEvent("calendar_range_changed", {
       start: info.startStr,
       end: info.endStr,
       view: info.view.type,
+      date: this.dateKey(this.calendar.getDate()),
+      request_id: requestId,
     })
 
     this.scrollToRelevantTime(info)
@@ -315,6 +406,16 @@ const FullCalendarPlanner = {
     this.countEl.textContent = count === 1 ? singular : `${count} ${pluralLabel}`
   },
 
+  beginRangeLoad() {
+    this.rangeLoading = true
+    this.refreshEmptyStates()
+    this.calendar?.refetchEvents()
+
+    if (this.countEl) {
+      this.countEl.textContent = this.el.dataset.loadingEventsTitle || "Loading events"
+    }
+  },
+
   eventClasses(info) {
     const source = info.event.extendedProps?.source
     return [
@@ -327,6 +428,14 @@ const FullCalendarPlanner = {
   },
 
   eventContent(info) {
+    if (this.compactMonthView(info.view?.type)) {
+      const marker = document.createElement("span")
+      marker.className = "konevo-calendar-event-dot"
+      marker.setAttribute("aria-label", info.event.title || "")
+      marker.title = info.event.title || ""
+      return {domNodes: [marker]}
+    }
+
     const props = info.event.extendedProps || {}
     const timedGrid = this.timedGridView(info.view?.type)
     const inner = document.createElement("div")
@@ -357,7 +466,7 @@ const FullCalendarPlanner = {
 
     topLine.append(eyebrow)
 
-    if (props.source === "task" && props.statusLabel) {
+    if (props.source === "task" && props.statusLabel && !timedGrid) {
       const status = document.createElement("span")
       status.className = "konevo-calendar-event-chip konevo-calendar-event-chip--status"
       status.textContent = props.statusLabel
@@ -386,20 +495,58 @@ const FullCalendarPlanner = {
     return viewType === "timeGridWeek" || viewType === "timeGridDay"
   },
 
+  compactMonthView(viewType) {
+    return viewType === "dayGridMonth" && window.matchMedia("(max-width: 639px)").matches
+  },
+
+  openCompactMonthDay(info) {
+    if (!this.compactMonthView(this.calendar?.view?.type)) return
+
+    this.beginRangeLoad()
+    this.calendar.changeView("listDay", info.date)
+  },
+
   emptyContent() {
     const wrapper = document.createElement("div")
     wrapper.className = "konevo-calendar-empty"
+    wrapper.dataset.calendarEmptyState = ""
 
     const title = document.createElement("div")
     title.className = "konevo-calendar-empty-title"
-    title.textContent = this.el.dataset.noEventsTitle || "No planned work in this range"
+    title.dataset.calendarEmptyTitle = ""
 
     const subtitle = document.createElement("div")
     subtitle.className = "konevo-calendar-empty-subtitle"
-    subtitle.textContent = this.el.dataset.noEventsSubtitle || ""
+    subtitle.dataset.calendarEmptySubtitle = ""
 
     wrapper.append(title, subtitle)
+    this.renderEmptyState(wrapper)
     return {domNodes: [wrapper]}
+  },
+
+  refreshEmptyStates() {
+    this.calendarEl?.querySelectorAll("[data-calendar-empty-state]").forEach(wrapper => {
+      this.renderEmptyState(wrapper)
+    })
+  },
+
+  renderEmptyState(wrapper) {
+    const loading = this.rangeLoading
+    const title = wrapper.querySelector("[data-calendar-empty-title]")
+    const subtitle = wrapper.querySelector("[data-calendar-empty-subtitle]")
+
+    wrapper.toggleAttribute("aria-busy", loading)
+
+    if (title) {
+      title.textContent = loading
+        ? this.el.dataset.loadingEventsTitle || "Loading events"
+        : this.el.dataset.noEventsTitle || "No planned work in this range"
+    }
+
+    if (subtitle) {
+      subtitle.hidden = loading
+      subtitle.textContent = loading ? "" : this.el.dataset.noEventsSubtitle || ""
+    }
   },
 
   openEvent(info) {

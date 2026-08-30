@@ -7,6 +7,7 @@ defmodule KonevoWeb.DealsLive.Components do
   """
   attr :deal, :map, required: true
   attr :id, :string, required: true
+  attr :return_to, :string, required: true
   attr :rest, :global
 
   def deal_card(assigns) do
@@ -30,15 +31,16 @@ defmodule KonevoWeb.DealsLive.Components do
             {@deal.title}
           </h3>
 
-          <div class="flex items-center gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+          <div class="flex items-center gap-1 shrink-0 opacity-100 transition-opacity md:opacity-0 md:group-hover:opacity-100">
             <.link
-              patch={~p"/deals/#{@deal}/edit"}
+              patch={edit_path(@deal, @return_to)}
               class={[
-                "flex size-7 items-center justify-center rounded-md border border-base-content/10",
+                "flex size-8 items-center justify-center rounded-md border border-base-content/10 md:size-7",
                 "bg-base-200/80 text-base-content/70 shadow-sm transition-all",
                 "hover:border-primary/25 hover:bg-primary/10 hover:text-primary"
               ]}
               title={gettext("Edit deal")}
+              aria-label={gettext("Edit deal")}
             >
               <.icon name="icon-[tabler--pencil]" class="size-3.5" />
             </.link>
@@ -48,11 +50,12 @@ defmodule KonevoWeb.DealsLive.Components do
               phx-click="archive_deal"
               phx-value-id={@deal.id}
               class={[
-                "flex size-7 items-center justify-center rounded-md border border-base-content/10",
+                "flex size-8 items-center justify-center rounded-md border border-base-content/10 md:size-7",
                 "bg-base-200/80 text-base-content/70 shadow-sm transition-all",
                 "hover:border-warning/25 hover:bg-warning/10 hover:text-warning"
               ]}
               title={gettext("Archive deal")}
+              aria-label={gettext("Archive deal")}
             >
               <.icon name="icon-[tabler--archive]" class="size-3.5" />
             </button>
@@ -62,11 +65,12 @@ defmodule KonevoWeb.DealsLive.Components do
               phx-click="restore_deal"
               phx-value-id={@deal.id}
               class={[
-                "flex size-7 items-center justify-center rounded-md border border-base-content/10",
+                "flex size-8 items-center justify-center rounded-md border border-base-content/10 md:size-7",
                 "bg-base-200/80 text-base-content/70 shadow-sm transition-all",
-                "hover:border-success/25 hover:bg-success/10 hover:text-success"
+                "hover:border-warning/25 hover:bg-warning/10 hover:text-warning"
               ]}
               title={gettext("Restore deal")}
+              aria-label={gettext("Restore deal")}
             >
               <.icon name="icon-[tabler--archive-off]" class="size-3.5" />
             </button>
@@ -76,11 +80,12 @@ defmodule KonevoWeb.DealsLive.Components do
               phx-value-id={@deal.id}
               data-confirm={gettext("Are you sure you want to delete this deal?")}
               class={[
-                "flex size-7 items-center justify-center rounded-md border border-base-content/10",
+                "flex size-8 items-center justify-center rounded-md border border-base-content/10 md:size-7",
                 "bg-base-200/80 text-base-content/70 shadow-sm transition-all",
                 "hover:border-red-600/25 hover:bg-red-600/10 hover:text-red-600"
               ]}
               title={gettext("Delete deal")}
+              aria-label={gettext("Delete deal")}
             >
               <.icon name="icon-[tabler--trash]" class="size-3.5" />
             </button>
@@ -139,6 +144,13 @@ defmodule KonevoWeb.DealsLive.Components do
     do: String.first(fn_) |> String.upcase()
 
   defp contact_initial(_), do: "?"
+
+  defp edit_path(deal, return_to) do
+    case URI.parse(return_to).query do
+      nil -> ~p"/deals/#{deal}/edit"
+      query -> ~p"/deals/#{deal}/edit?#{URI.decode_query(query)}"
+    end
+  end
 
   defp contact_name(%{first_name: fn_, last_name: ln}) do
     [fn_, ln] |> Enum.filter(&(is_binary(&1) and &1 != "")) |> Enum.join(" ")

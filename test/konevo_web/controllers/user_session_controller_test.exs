@@ -185,7 +185,7 @@ defmodule KonevoWeb.UserSessionControllerTest do
 
       assert get_session(conn, :user_token)
       assert redirected_to(conn) == ~p"/dashboard"
-      assert Phoenix.Flash.get(conn.assigns.flash, :success) =~ "User confirmed successfully"
+      assert Phoenix.Flash.get(conn.assigns.flash, :success) =~ "User confirmed"
 
       assert Accounts.get_user!(user.id).confirmed_at
     end
@@ -267,14 +267,14 @@ defmodule KonevoWeb.UserSessionControllerTest do
       conn = conn |> log_in_user(user) |> delete(~p"/users/log-out")
       assert redirected_to(conn) == ~p"/"
       refute get_session(conn, :user_token)
-      assert Phoenix.Flash.get(conn.assigns.flash, :success) =~ "Logged out successfully"
+      assert Phoenix.Flash.get(conn.assigns.flash, :success) =~ "Logged out"
     end
 
     test "succeeds even if the user is not logged in", %{conn: conn} do
       conn = delete(conn, ~p"/users/log-out")
       assert redirected_to(conn) == ~p"/"
       refute get_session(conn, :user_token)
-      assert Phoenix.Flash.get(conn.assigns.flash, :success) =~ "Logged out successfully"
+      assert Phoenix.Flash.get(conn.assigns.flash, :success) =~ "Logged out"
     end
   end
 

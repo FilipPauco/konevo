@@ -20,6 +20,7 @@ defmodule KonevoWeb.ContactsLive.Show do
     {:ok,
      socket
      |> assign(:contact, nil)
+     |> assign(:return_to, ~p"/contacts")
      |> assign(:avatar, nil)
      |> assign(:task_timeline_tasks, [])
      |> assign(:task_form_open?, false)
@@ -40,12 +41,15 @@ defmodule KonevoWeb.ContactsLive.Show do
   end
 
   @impl true
-  def handle_params(%{"id" => id}, _, socket) do
+  def handle_params(%{"id" => id} = params, _, socket) do
+    return_to = list_return_to(params)
+
     if connected?(socket) do
       contact = Contacts.get_contact_by_slug_or_id!(socket.assigns.current_scope, id)
 
       {:noreply,
        socket
+       |> assign(:return_to, return_to)
        |> assign(:page_title, "#{contact.first_name} #{contact.last_name}")
        |> assign(:contact, contact)
        |> assign(:can_update_contact?, contact_update_allowed?(socket, contact))
@@ -56,7 +60,7 @@ defmodule KonevoWeb.ContactsLive.Show do
        |> assign_task_form_options()
        |> assign_notes_form(contact)}
     else
-      {:noreply, socket}
+      {:noreply, assign(socket, :return_to, return_to)}
     end
   end
 
@@ -70,7 +74,7 @@ defmodule KonevoWeb.ContactsLive.Show do
      |> assign_avatar(contact)
      |> assign_contact_tasks(contact)
      |> assign_contact_deals(contact)
-     |> push_patch(to: ~p"/contacts/#{contact}")}
+     |> push_patch(to: show_path(contact, socket.assigns.return_to))}
   end
 
   def handle_info(
@@ -113,8 +117,17 @@ defmodule KonevoWeb.ContactsLive.Show do
   @impl true
   def handle_event("delete", _, socket) do
     contact = socket.assigns.contact
-    {:ok, _} = Contacts.delete_contact(socket.assigns.current_scope, contact)
-    {:noreply, push_navigate(socket, to: ~p"/contacts")}
+
+    case Contacts.delete_contact(socket.assigns.current_scope, contact) do
+      {:ok, _deleted} ->
+        {:noreply,
+         socket
+         |> put_flash(:success, gettext("Contact deleted"))
+         |> push_navigate(to: socket.assigns.return_to)}
+
+      {:error, :unauthorized} ->
+        {:noreply, put_flash(socket, :error, gettext("You cannot delete this contact"))}
+    end
   end
 
   def handle_event("archive", _, socket) do
@@ -199,10 +212,10 @@ defmodule KonevoWeb.ContactsLive.Show do
     <Layouts.app flash={@flash} current_scope={@current_scope} current_path={@current_path}>
       <div :if={@contact} class="mx-auto max-w-6xl px-4 py-6 sm:px-6">
         <%!-- Page trail --%>
-        <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <div class="mb-4 flex flex-wrap items-center gap-3">
           <nav id="contact-back-link" class="flex items-center gap-1.5 text-sm">
             <.link
-              navigate={~p"/contacts"}
+              navigate={@return_to}
               class="group flex items-center gap-1 text-base-content/45 transition-colors duration-150 hover:text-base-content/80"
             >
               <.icon
@@ -216,10 +229,6 @@ defmodule KonevoWeb.ContactsLive.Show do
               {@contact.first_name} {@contact.last_name}
             </span>
           </nav>
-          <div class="inline-flex items-center gap-2 rounded-full border border-base-content/10 bg-base-100 px-3 py-1.5 text-xs font-medium text-base-content/45 shadow-sm">
-            <.icon name="icon-[tabler--user]" class="size-3.5" />
-            {gettext("Contact profile")}
-          </div>
         </div>
 
         <%!-- Profile hero card --%>
@@ -344,7 +353,7 @@ defmodule KonevoWeb.ContactsLive.Show do
                   :if={!is_nil(@contact.archived_at)}
                   type="button"
                   phx-click="restore"
-                  class="btn btn-sm btn-outline gap-1.5 border-success/30 bg-success/10 text-success shadow-sm hover:bg-success/15"
+                  class="btn btn-neutral btn-sm gap-1.5"
                 >
                   <.icon name="icon-[tabler--archive-off]" class="size-3.5" />
                   {gettext("Restore")}
@@ -722,7 +731,7 @@ defmodule KonevoWeb.ContactsLive.Show do
   end
 
   defp status_pill_class(:lead),
-    do: "border-info/30 bg-info/12 text-info"
+    do: "border-teal-400/30 bg-teal-400/12 text-teal-700 dark:text-teal-300"
 
   defp status_pill_class(:prospect),
     do: "border-amber-500/30 bg-amber-500/10 text-amber-700"
@@ -867,4 +876,15 @@ defmodule KonevoWeb.ContactsLive.Show do
   end
 
   defp default_due_date, do: DateTime.utc_now(:second) |> DateTime.add(86_400, :second)
+
+  defp show_path(contact, return_to), do: ~p"/contacts/#{contact}?#{[return_to: return_to]}"
+
+  defp list_return_to(%{"return_to" => return_to}) when is_binary(return_to) do
+    case URI.parse(return_to) do
+      %URI{scheme: nil, host: nil, path: "/contacts"} -> return_to
+      _ -> ~p"/contacts"
+    end
+  end
+
+  defp list_return_to(_params), do: ~p"/contacts"
 end

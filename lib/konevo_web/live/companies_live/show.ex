@@ -13,6 +13,7 @@ defmodule KonevoWeb.CompaniesLive.Show do
     {:ok,
      socket
      |> assign(:company, nil)
+     |> assign(:return_to, ~p"/companies")
      |> assign(:task_timeline_tasks, [])
      |> assign(:task_form_open?, false)
      |> assign(:task_form_task, nil)
@@ -28,13 +29,18 @@ defmodule KonevoWeb.CompaniesLive.Show do
   end
 
   @impl true
-  def handle_params(%{"id" => id}, _url, socket) do
+  def handle_params(%{"id" => id} = params, _url, socket) do
+    return_to = list_return_to(params)
+
     if connected?(socket) do
       company = Companies.get_company_by_slug_or_id!(socket.assigns.current_scope, id)
 
-      {:noreply, assign_company_details(socket, company)}
+      {:noreply,
+       socket
+       |> assign(:return_to, return_to)
+       |> assign_company_details(company)}
     else
-      {:noreply, socket}
+      {:noreply, assign(socket, :return_to, return_to)}
     end
   end
 
@@ -44,7 +50,8 @@ defmodule KonevoWeb.CompaniesLive.Show do
 
     {:noreply,
      socket
-     |> assign_company_details(company)}
+     |> assign_company_details(company)
+     |> push_patch(to: show_path(company, socket.assigns.return_to))}
   end
 
   def handle_info({KonevoWeb.ContactsLive.FormComponent, {:saved, _contact, :created}}, socket) do
@@ -123,7 +130,10 @@ defmodule KonevoWeb.CompaniesLive.Show do
 
     case Companies.delete_company(socket.assigns.current_scope, company) do
       {:ok, _company} ->
-        {:noreply, push_navigate(socket, to: ~p"/companies")}
+        {:noreply,
+         socket
+         |> put_flash(:success, gettext("Company deleted"))
+         |> push_navigate(to: socket.assigns.return_to)}
 
       {:error, :unauthorized} ->
         {:noreply, put_flash(socket, :error, gettext("You cannot delete this company"))}
@@ -190,10 +200,10 @@ defmodule KonevoWeb.CompaniesLive.Show do
     <Layouts.app flash={@flash} current_scope={@current_scope} current_path={@current_path}>
       <div :if={@company} class="mx-auto max-w-6xl px-4 py-5 sm:px-6 sm:py-6">
         <%!-- Page trail --%>
-        <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <div class="mb-4 flex flex-wrap items-center gap-3">
           <nav id="company-back-link" class="flex items-center gap-1.5 text-sm">
             <.link
-              navigate={~p"/companies"}
+              navigate={@return_to}
               class="group flex items-center gap-1 text-base-content/45 transition-colors duration-150 hover:text-base-content/80"
             >
               <.icon
@@ -207,10 +217,6 @@ defmodule KonevoWeb.CompaniesLive.Show do
               {@company.name}
             </span>
           </nav>
-          <div class="inline-flex items-center gap-2 rounded-full border border-base-content/10 bg-base-100 px-3 py-1.5 text-xs font-medium text-base-content/45 shadow-sm">
-            <.icon name="icon-[tabler--building-skyscraper]" class="size-3.5" />
-            {gettext("Company profile")}
-          </div>
         </div>
 
         <%!-- Hero card --%>
@@ -252,7 +258,7 @@ defmodule KonevoWeb.CompaniesLive.Show do
                   type="button"
                   id="restore-company"
                   phx-click="restore"
-                  class="btn btn-sm btn-outline gap-1.5 border-success/30 bg-success/10 text-success shadow-sm hover:bg-success/15"
+                  class="btn btn-neutral btn-sm gap-1.5"
                 >
                   <.icon name="icon-[tabler--archive-off]" class="size-3.5" />
                   {gettext("Restore")}
@@ -676,4 +682,15 @@ defmodule KonevoWeb.CompaniesLive.Show do
   end
 
   defp default_due_date, do: DateTime.utc_now(:second) |> DateTime.add(86_400, :second)
+
+  defp show_path(company, return_to), do: ~p"/companies/#{company}?#{[return_to: return_to]}"
+
+  defp list_return_to(%{"return_to" => return_to}) when is_binary(return_to) do
+    case URI.parse(return_to) do
+      %URI{scheme: nil, host: nil, path: "/companies"} -> return_to
+      _ -> ~p"/companies"
+    end
+  end
+
+  defp list_return_to(_params), do: ~p"/companies"
 end

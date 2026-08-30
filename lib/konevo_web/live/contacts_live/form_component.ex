@@ -105,10 +105,9 @@ defmodule KonevoWeb.ContactsLive.FormComponent do
                     checked={to_string(@form[:status].value) == to_string(value)}
                   />
                   <span class={[
-                    "inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm font-medium transition-all select-none",
-                    "border-base-content/20 bg-base-100 text-base-content/60",
-                    "peer-checked:font-semibold",
-                    status_chip_class(value)
+                    "inline-flex cursor-pointer select-none items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm font-medium transition-all",
+                    "border-base-content/40 bg-base-100 text-base-content/60 hover:border-base-content/60",
+                    "peer-checked:border-primary peer-checked:bg-primary/10 peer-checked:text-primary peer-checked:font-semibold"
                   ]}>
                     <span class={["size-1.5 rounded-full", status_dot_class(value)]} />
                     {label}
@@ -246,22 +245,7 @@ defmodule KonevoWeb.ContactsLive.FormComponent do
     |> Enum.map(fn s -> {Phoenix.Naming.humanize(s), s} end)
   end
 
-  defp status_chip_class(:lead),
-    do: "peer-checked:border-info peer-checked:bg-info/15 peer-checked:text-info"
-
-  defp status_chip_class(:prospect),
-    do: "peer-checked:border-amber-600 peer-checked:bg-amber-500/10 peer-checked:text-amber-700"
-
-  defp status_chip_class(:customer),
-    do: "peer-checked:border-success peer-checked:bg-success/15 peer-checked:text-success"
-
-  defp status_chip_class(:churned),
-    do: "peer-checked:border-error peer-checked:bg-error/15 peer-checked:text-error"
-
-  defp status_chip_class(s) when is_binary(s), do: status_chip_class(String.to_existing_atom(s))
-  defp status_chip_class(_), do: "border-base-content/20 bg-base-100 text-base-content"
-
-  defp status_dot_class(:lead), do: "bg-info"
+  defp status_dot_class(:lead), do: "bg-teal-400"
   defp status_dot_class(:prospect), do: "bg-warning"
   defp status_dot_class(:customer), do: "bg-success"
   defp status_dot_class(:churned), do: "bg-error"

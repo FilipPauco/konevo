@@ -133,7 +133,7 @@ defmodule KonevoWeb.UserLive.Registration do
       {:ok, %{user: _user}} ->
         {:noreply,
          socket
-         |> put_flash(:success, gettext("Account created successfully"))
+         |> put_flash(:success, gettext("Account created"))
          |> assign(:trigger_submit, true)}
 
       {:error, :user, %Ecto.Changeset{} = changeset, _changes} ->

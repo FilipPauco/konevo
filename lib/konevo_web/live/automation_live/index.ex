@@ -2,6 +2,7 @@ defmodule KonevoWeb.AutomationLive.Index do
   @moduledoc false
 
   use KonevoWeb, :live_view
+  import LiveSelect
 
   alias Konevo.Automation
   alias Konevo.Messaging
@@ -17,6 +18,7 @@ defmodule KonevoWeb.AutomationLive.Index do
       socket
       |> assign(:page_title, gettext("Workflows"))
       |> assign(:automation_tab, "configuration")
+      |> assign(:automation_tab_form, automation_tab_form("configuration"))
       |> assign(:loading, true)
       |> assign(:active_sequence, nil)
       |> assign(:selected_workflow, "no_reply_follow_up")
@@ -49,7 +51,12 @@ defmodule KonevoWeb.AutomationLive.Index do
 
   @impl true
   def handle_params(params, _url, socket) do
-    {:noreply, assign(socket, :automation_tab, automation_tab(Map.get(params, "tab")))}
+    tab = automation_tab(Map.get(params, "tab"))
+
+    {:noreply,
+     socket
+     |> assign(:automation_tab, tab)
+     |> assign(:automation_tab_form, automation_tab_form(tab))}
   end
 
   @impl true
@@ -176,6 +183,78 @@ defmodule KonevoWeb.AutomationLive.Index do
     end
   end
 
+  def handle_event("unapprove_draft", %{"id" => id}, socket) do
+    scope = socket.assigns.current_scope
+    draft = Messaging.get_draft!(scope, id)
+
+    case Messaging.unapprove_draft(scope, draft) do
+      {:ok, _draft} ->
+        {:noreply,
+         socket |> put_flash(:info, gettext("Draft returned to review")) |> load_drafts()}
+
+      {:error, :not_approved} ->
+        {:noreply,
+         put_flash(socket, :error, gettext("Only approved drafts can be returned to review"))}
+
+      {:error, :unauthorized} ->
+        {:noreply, put_flash(socket, :error, gettext("You cannot update drafts"))}
+
+      {:error, _reason} ->
+        {:noreply, put_flash(socket, :error, gettext("Could not return the draft to review"))}
+    end
+  end
+
+  def handle_event("create_draft_contact", %{"id" => id}, socket) do
+    scope = socket.assigns.current_scope
+    draft = Messaging.get_draft!(scope, id)
+
+    case Messaging.create_contact_and_unapprove_draft(scope, draft) do
+      {:ok, _result} ->
+        {:noreply,
+         socket
+         |> put_flash(:info, gettext("Contact linked; draft returned to review"))
+         |> load_drafts()}
+
+      {:error, :missing_sender} ->
+        {:noreply,
+         put_flash(socket, :error, gettext("Could not find an inbound sender for this draft"))}
+
+      {:error, :missing_thread} ->
+        {:noreply,
+         put_flash(socket, :error, gettext("Could not find the source thread for this draft"))}
+
+      {:error, :not_approved} ->
+        {:noreply,
+         put_flash(socket, :error, gettext("Only approved drafts can be returned to review"))}
+
+      {:error, :unauthorized} ->
+        {:noreply,
+         put_flash(socket, :error, gettext("You cannot create contacts or update drafts"))}
+
+      {:error, _reason} ->
+        {:noreply,
+         put_flash(socket, :error, gettext("Could not create a contact for this draft"))}
+    end
+  end
+
+  def handle_event("clear_all_drafts", _params, socket) do
+    case Messaging.reject_all_review_drafts(socket.assigns.current_scope) do
+      {:ok, _count} ->
+        {:noreply,
+         socket
+         |> assign(:draft_page, 1)
+         |> assign(:draft_transition, nil)
+         |> put_flash(:info, gettext("Email drafts cleared"))
+         |> load_drafts()}
+
+      {:error, :unauthorized} ->
+        {:noreply, put_flash(socket, :error, gettext("You cannot clear email drafts"))}
+
+      {:error, _reason} ->
+        {:noreply, put_flash(socket, :error, gettext("Could not clear email drafts"))}
+    end
+  end
+
   def handle_event("send_draft", %{"id" => id}, socket) do
     scope = socket.assigns.current_scope
     draft = Messaging.get_draft!(scope, id)
@@ -233,6 +312,70 @@ defmodule KonevoWeb.AutomationLive.Index do
       {:error, _reason} ->
         {:noreply, put_flash(socket, :error, gettext("Could not reject task approval"))}
     end
+  end
+
+  def handle_event("clear_all_task_approvals", _params, socket) do
+    case Automation.reject_all_task_approvals(socket.assigns.current_scope) do
+      {:ok, _count} ->
+        {:noreply,
+         socket
+         |> assign(:task_approval_page, 1)
+         |> put_flash(:info, gettext("Task suggestions cleared"))
+         |> load_task_approvals()}
+
+      {:error, :unauthorized} ->
+        {:noreply, put_flash(socket, :error, gettext("You cannot clear task suggestions"))}
+
+      {:error, _reason} ->
+        {:noreply, put_flash(socket, :error, gettext("Could not clear task suggestions"))}
+    end
+  end
+
+  def handle_event("change_automation_tab", %{"automation_tab" => %{"tab" => tab}}, socket) do
+    if Enum.any?(automation_tabs(), &(&1.id == tab)) do
+      {:noreply, push_patch(socket, to: ~p"/automation?tab=#{tab}")}
+    else
+      {:noreply, socket}
+    end
+  end
+
+  def handle_event(
+        "live_select_change",
+        %{"id" => "automation-tab-mobile-select", "text" => text},
+        socket
+      ) do
+    send_update(LiveSelect.Component,
+      id: "automation-tab-mobile-select",
+      options: automation_tab_options(text)
+    )
+
+    {:noreply, socket}
+  end
+
+  def handle_event(
+        "live_select_change",
+        %{"id" => "automation-action-mode-select", "text" => text},
+        socket
+      ) do
+    send_update(LiveSelect.Component,
+      id: "automation-action-mode-select",
+      options: mode_select_options(socket.assigns.selected_workflow, text)
+    )
+
+    {:noreply, socket}
+  end
+
+  def handle_event(
+        "live_select_change",
+        %{"id" => "task-approval-priority-" <> _approval_id, "text" => text} = params,
+        socket
+      ) do
+    send_update(LiveSelect.Component,
+      id: params["id"],
+      options: filter_task_priority_live_options(text)
+    )
+
+    {:noreply, socket}
   end
 
   defp load_automation(socket, selected_id \\ nil) do
@@ -386,8 +529,6 @@ defmodule KonevoWeb.AutomationLive.Index do
       "name" => gettext("Create tasks from lead emails"),
       "mode" => "manual",
       "idle_days" => "1",
-      "subject" => gettext("Review inbound lead email"),
-      "body" => "",
       "excluded_senders" => @default_excluded_senders
     }
   end
@@ -411,7 +552,6 @@ defmodule KonevoWeb.AutomationLive.Index do
       "mode" => "manual",
       "idle_days" => "3",
       "subject" => gettext("Following up"),
-      "body" => gettext("Just checking in on my previous email."),
       "excluded_senders" => @default_excluded_senders
     }
   end
@@ -457,8 +597,6 @@ defmodule KonevoWeb.AutomationLive.Index do
         "action_type" => "prepare_task",
         "delay_seconds" => 0,
         "action_config" => %{
-          "title" => Map.get(params, "subject", ""),
-          "instructions" => Map.get(params, "body", ""),
           "mode" => Map.get(params, "mode", "manual"),
           "ai_generated" => true
         }
@@ -489,7 +627,6 @@ defmodule KonevoWeb.AutomationLive.Index do
         "delay_seconds" => 0,
         "action_config" => %{
           "subject" => Map.get(params, "subject", gettext("Following up")),
-          "body" => Map.get(params, "body", ""),
           "mode" => Map.get(params, "mode", "manual"),
           "approval_required" => Map.get(params, "mode", "manual") == "manual"
         }
@@ -564,7 +701,9 @@ defmodule KonevoWeb.AutomationLive.Index do
         name: gettext("No-reply follow-up"),
         summary: gettext("Your sent email has no customer reply after N days."),
         result:
-          gettext("Prepare a follow-up email; send only after approval unless set automatic.")
+          gettext(
+            "AI prepares a follow-up using your global preferences; send only after approval unless set automatic."
+          )
       },
       %{
         id: "inbound_email_task",
@@ -594,6 +733,24 @@ defmodule KonevoWeb.AutomationLive.Index do
       },
       %{id: "email_drafts", label: gettext("Email drafts"), icon: "icon-[tabler--mail]"}
     ]
+  end
+
+  defp automation_tab_form(tab), do: to_form(%{"tab" => tab}, as: "automation_tab")
+
+  defp automation_tab_options(query \\ "") do
+    normalized_query = query |> String.trim() |> String.downcase()
+
+    automation_tabs()
+    |> Enum.filter(fn tab ->
+      normalized_query == "" or String.contains?(String.downcase(tab.label), normalized_query)
+    end)
+    |> Enum.map(fn tab -> %{label: tab.label, value: tab.id} end)
+  end
+
+  defp automation_tab_icon(tab_id) do
+    automation_tabs()
+    |> Enum.find(%{icon: "icon-[tabler--settings]"}, &(&1.id == tab_id))
+    |> Map.fetch!(:icon)
   end
 
   defp automation_tab(tab) do
@@ -626,6 +783,91 @@ defmodule KonevoWeb.AutomationLive.Index do
       {gettext("Automatic"), "automatic"}
     ]
   end
+
+  defp mode_select_options(workflow, query \\ "") do
+    normalized_query = query |> to_string() |> String.trim() |> String.downcase()
+
+    workflow
+    |> mode_options()
+    |> Enum.map(fn {label, value} ->
+      %{label: label, value: value, icon: action_mode_icon(value)}
+    end)
+    |> Enum.filter(fn option ->
+      normalized_query == "" || String.contains?(String.downcase(option.label), normalized_query)
+    end)
+  end
+
+  defp action_mode_icon("automatic"), do: "icon-[tabler--bolt]"
+  defp action_mode_icon(_mode), do: "icon-[tabler--eye]"
+
+  attr(:field, Phoenix.HTML.FormField, required: true)
+  attr(:workflow, :string, required: true)
+
+  defp action_mode_select(assigns) do
+    options = mode_select_options(assigns.workflow)
+    selected_option = Enum.find(options, &(&1.value == to_string(assigns.field.value || "")))
+
+    assigns =
+      assigns
+      |> assign(:options, options)
+      |> assign(:selected_option, selected_option)
+
+    ~H"""
+    <div class="fieldset flex w-full flex-col gap-2">
+      <span id={"#{@field.id}-label"} class="label">{gettext("Action mode")}</span>
+      <div class="group relative w-full">
+        <span class="pointer-events-none absolute inset-y-0 left-3 z-20 flex items-center">
+          <span class="flex size-6 items-center justify-center rounded-md border border-primary/15 bg-primary/10 text-primary/70">
+            <.icon name={action_mode_icon(@field.value)} class="size-3.5" />
+          </span>
+        </span>
+        <.live_select
+          field={@field}
+          id="automation-action-mode-select"
+          options={@options}
+          value={@selected_option || @field.value}
+          value_mapper={&action_mode_option_value(&1, @options)}
+          placeholder={gettext("Choose action mode")}
+          style={:none}
+          debounce={120}
+          update_min_len={0}
+          container_class="relative w-full"
+          text_input_class="input h-10 w-full cursor-pointer pl-11 pr-12 font-medium placeholder:text-base-content/40 focus:cursor-text"
+          dropdown_class="absolute left-0 top-[calc(100%+4px)] z-[300] max-h-60 w-full overflow-y-auto rounded-lg border border-base-content/10 bg-base-100 p-1 shadow-xl shadow-base-content/10"
+          option_class="flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-sm"
+          available_option_class="cursor-pointer rounded-md hover:bg-base-200/70"
+          selected_option_class="cursor-pointer rounded-md bg-base-200/70 font-semibold"
+          active_option_class="bg-base-200"
+        >
+          <:option :let={option}>
+            <span class="flex size-6 shrink-0 items-center justify-center rounded-md border border-primary/15 bg-primary/10 text-primary/70">
+              <.icon name={option.icon} class="size-3" />
+            </span>
+            <span class="min-w-0 flex-1 truncate">{option.label}</span>
+          </:option>
+        </.live_select>
+        <span
+          id={"#{@field.id}-select-chevron"}
+          class="pointer-events-none absolute inset-y-0 right-2 z-20 flex items-center text-base-content/45"
+        >
+          <.icon
+            name="icon-[tabler--chevron-down]"
+            class="size-4 transition-transform duration-200 group-focus-within:rotate-180"
+          />
+        </span>
+      </div>
+    </div>
+    """
+  end
+
+  defp action_mode_option_value(value, options) when is_binary(value) do
+    case Enum.find(options, &(to_string(&1.value) == value)) do
+      nil -> value
+      option -> option.value
+    end
+  end
+
+  defp action_mode_option_value(value, _options), do: value
 
   attr :status, :atom, required: true
 
@@ -732,9 +974,28 @@ defmodule KonevoWeb.AutomationLive.Index do
   end
 
   defp sequence_excluded_senders(sequence) do
+    sequence_excluded_sender_patterns(sequence)
+    |> Enum.join(", ")
+  end
+
+  defp sequence_excluded_sender_patterns(sequence) do
     (sequence.trigger_config || %{})
     |> Map.get("excluded_senders", [])
-    |> Enum.join(", ")
+    |> List.wrap()
+    |> Enum.filter(&(is_binary(&1) and String.trim(&1) != ""))
+  end
+
+  defp excluded_senders_preview(sequence) do
+    case sequence_excluded_sender_patterns(sequence) do
+      [] ->
+        gettext("No ignored senders")
+
+      [sender] ->
+        sender
+
+      [sender | rest] ->
+        gettext("%{sender} and %{count} more", sender: sender, count: length(rest))
+    end
   end
 
   defp draft_contact_label(%{contact: %{first_name: first, last_name: last, email: email}}) do
@@ -747,7 +1008,36 @@ defmodule KonevoWeb.AutomationLive.Index do
     end
   end
 
+  defp draft_contact_label(%{source_email: %{from: from}}) when is_binary(from) and from != "",
+    do: from
+
+  defp draft_contact_label(%{email_thread: %{emails: emails}}) when is_list(emails) do
+    emails
+    |> Enum.filter(& &1.is_inbound)
+    |> Enum.max_by(& &1.received_at, DateTime, fn -> nil end)
+    |> case do
+      %{from: from} when is_binary(from) and from != "" -> from
+      _ -> gettext("Unknown contact")
+    end
+  end
+
   defp draft_contact_label(_draft), do: gettext("Unknown contact")
+
+  attr(:id, :string, required: true)
+  attr(:thread_id, :integer, required: true)
+
+  defp source_thread_link(assigns) do
+    ~H"""
+    <.link
+      id={@id}
+      navigate={~p"/inbox/#{@thread_id}"}
+      class="inline-flex items-center gap-1 text-xs font-medium text-primary transition-colors hover:text-primary/75"
+    >
+      <.icon name="icon-[tabler--arrow-up-right]" class="size-3.5" />
+      {gettext("View source email")}
+    </.link>
+    """
+  end
 
   defp draft_transition_action(nil, _draft_id), do: nil
 
@@ -798,13 +1088,134 @@ defmodule KonevoWeb.AutomationLive.Index do
 
   defp task_approval_due_value(_due_date), do: ""
 
-  defp task_priority_options do
+  defp task_priority_live_options do
     [
-      {gettext("Low"), "low"},
-      {gettext("Normal"), "normal"},
-      {gettext("High"), "high"},
-      {gettext("Urgent"), "urgent"}
+      %{
+        label: gettext("Low"),
+        value: "low",
+        icon: "icon-[tabler--flag-filled]",
+        color: "#94a3b8"
+      },
+      %{
+        label: gettext("Normal"),
+        value: "normal",
+        icon: "icon-[tabler--flag-filled]",
+        color: "#3b82f6"
+      },
+      %{
+        label: gettext("High"),
+        value: "high",
+        icon: "icon-[tabler--flag-filled]",
+        color: "#f97316"
+      },
+      %{
+        label: gettext("Urgent"),
+        value: "urgent",
+        icon: "icon-[tabler--flag-filled]",
+        color: "#ef4444"
+      }
     ]
+  end
+
+  defp filter_task_priority_live_options(text) do
+    query = text |> to_string() |> String.trim() |> String.downcase()
+
+    Enum.filter(task_priority_live_options(), fn option ->
+      String.contains?(String.downcase(option.label), query)
+    end)
+  end
+
+  defp task_priority_icon_style(%{color: color}) do
+    [
+      "color: #{color}",
+      "background-color: color-mix(in srgb, #{color} 12%, transparent)",
+      "border-color: color-mix(in srgb, #{color} 24%, transparent)"
+    ]
+    |> Enum.join("; ")
+  end
+
+  defp task_priority_icon_style(_option), do: nil
+
+  defp task_priority_live_value(value, options) when is_binary(value) do
+    case Enum.find(options, &(to_string(&1.value) == value)) do
+      nil -> value
+      option -> option.value
+    end
+  end
+
+  defp task_priority_live_value(value, _options), do: value
+
+  attr(:field, Phoenix.HTML.FormField, required: true)
+  attr(:id, :string, required: true)
+
+  defp task_approval_priority_select(assigns) do
+    options = task_priority_live_options()
+
+    selected_option =
+      Enum.find(options, &(&1.value == to_string(assigns.field.value || ""))) ||
+        List.first(options)
+
+    assigns = assigns |> assign(:options, options) |> assign(:selected_option, selected_option)
+
+    ~H"""
+    <div class="fieldset flex w-full flex-col gap-2">
+      <span class="label">{gettext("Priority")}</span>
+      <div class="group relative w-full">
+        <span class="pointer-events-none absolute inset-y-0 left-3 z-20 flex items-center">
+          <span
+            id={"#{@id}-select-icon"}
+            class="flex size-6 items-center justify-center rounded-md border border-primary/15 bg-primary/10 text-primary/70"
+            style={task_priority_icon_style(@selected_option)}
+          >
+            <.icon name={@selected_option.icon} class="size-3.5" />
+          </span>
+        </span>
+        <.live_select
+          field={@field}
+          id={@id}
+          options={@options}
+          value={@selected_option}
+          value_mapper={&task_priority_live_value(&1, @options)}
+          placeholder={gettext("Choose priority")}
+          allow_clear={false}
+          style={:none}
+          debounce={120}
+          update_min_len={0}
+          container_class="relative w-full"
+          text_input_class="input w-full cursor-pointer pl-11 pr-12 font-medium placeholder:text-base-content/40 focus:cursor-text"
+          dropdown_class="absolute left-0 top-[calc(100%+4px)] z-[300] max-h-60 w-full overflow-y-auto rounded-lg border border-base-content/10 bg-base-100 p-1 shadow-xl shadow-base-content/10"
+          option_class="flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-sm"
+          available_option_class="cursor-pointer rounded-md hover:bg-base-200/70"
+          selected_option_class="cursor-pointer rounded-md bg-base-200/70 font-semibold"
+          active_option_class="bg-base-200"
+        >
+          <:option :let={option}>
+            <span
+              class="flex size-6 shrink-0 items-center justify-center rounded-md border border-primary/15 bg-primary/10 text-primary/70"
+              style={task_priority_icon_style(option)}
+            >
+              <.icon name={option.icon} class="size-3" />
+            </span>
+            <span class="min-w-0 flex-1 truncate">{option.label}</span>
+            <.icon
+              :if={option.selected}
+              name="icon-[tabler--check]"
+              class="size-3.5 shrink-0 text-primary"
+            />
+          </:option>
+        </.live_select>
+        <span
+          id={"#{@id}-select-chevron"}
+          class="pointer-events-none absolute inset-y-0 right-2 z-20 flex items-center text-base-content/45"
+        >
+          <.icon
+            name="icon-[tabler--chevron-down]"
+            class="size-4 transition-transform duration-200 group-focus-within:rotate-180"
+          />
+        </span>
+      </div>
+    </div>
+    """
   end
 
   defp task_priority_value(priority) when is_atom(priority), do: Atom.to_string(priority)
@@ -868,9 +1279,66 @@ defmodule KonevoWeb.AutomationLive.Index do
             class="rounded-lg border border-base-content/10 bg-base-100"
           >
             <div class="px-4 pt-3 sm:px-5">
+              <.form
+                for={@automation_tab_form}
+                id="automation-tab-mobile-form"
+                phx-change="change_automation_tab"
+                class="mb-3 sm:hidden"
+                aria-label={gettext("Automation tab")}
+              >
+                <div class="group relative w-full">
+                  <span class="pointer-events-none absolute inset-y-0 left-3 z-20 flex items-center">
+                    <span class="flex size-6 items-center justify-center rounded-md border border-primary/15 bg-primary/10 text-primary/70">
+                      <.icon name={automation_tab_icon(@automation_tab)} class="size-3.5" />
+                    </span>
+                  </span>
+                  <.live_select
+                    field={@automation_tab_form[:tab]}
+                    id="automation-tab-mobile-select"
+                    options={automation_tab_options()}
+                    value={@automation_tab}
+                    placeholder={gettext("Search automation sections…")}
+                    style={:none}
+                    debounce={100}
+                    update_min_len={0}
+                    container_class="relative w-full"
+                    text_input_class="input h-10 w-full cursor-pointer pl-11 pr-10 text-sm font-medium placeholder:text-base-content/40 focus:cursor-text"
+                    dropdown_class="absolute left-0 top-[calc(100%+4px)] z-[300] max-h-60 w-full overflow-y-auto rounded-lg border border-base-content/10 bg-base-100 p-1 shadow-xl shadow-base-content/10"
+                    option_class="flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-sm"
+                    available_option_class="cursor-pointer rounded-md hover:bg-base-200/70"
+                    selected_option_class="cursor-pointer rounded-md bg-base-200/70 font-semibold"
+                    active_option_class="bg-base-200"
+                  >
+                    <:option :let={option}>
+                      <span class="flex size-6 shrink-0 items-center justify-center rounded-md border border-primary/15 bg-primary/10 text-primary/70">
+                        <.icon name={automation_tab_icon(option.value)} class="size-3.5" />
+                      </span>
+                      <span class="min-w-0 flex-1 truncate">{option.label}</span>
+                      <span
+                        :if={option.value == "task_suggestions" && @task_approval_total > 0}
+                        class="badge badge-primary badge-sm min-h-5 min-w-5 shrink-0 rounded-full border-0 px-1.5 text-[10px] font-bold leading-none"
+                      >
+                        {@task_approval_total}
+                      </span>
+                      <span
+                        :if={option.value == "email_drafts" && @draft_total > 0}
+                        class="badge badge-primary badge-sm min-h-5 min-w-5 shrink-0 rounded-full border-0 px-1.5 text-[10px] font-bold leading-none"
+                      >
+                        {@draft_total}
+                      </span>
+                    </:option>
+                  </.live_select>
+                  <span class="pointer-events-none absolute inset-y-0 right-2 z-20 flex items-center text-base-content/45">
+                    <.icon
+                      name="icon-[tabler--chevron-down]"
+                      class="size-4 transition-transform duration-200 group-focus-within:rotate-180"
+                    />
+                  </span>
+                </div>
+              </.form>
               <nav
                 id="automation-tabs"
-                class="tabs tabs-bordered overflow-x-auto"
+                class="tabs tabs-bordered hidden overflow-x-auto sm:flex"
                 aria-label={gettext("Automation tabs")}
                 role="tablist"
                 aria-orientation="horizontal"
@@ -940,8 +1408,7 @@ defmodule KonevoWeb.AutomationLive.Index do
                       aria-label={gettext("Loading workflows")}
                     >
                       <div
-                        :for={row <- 1..3}
-                        id={"workflow-skeleton-#{row}"}
+                        id="workflow-skeleton"
                         class="rounded-md border border-base-content/10 p-3"
                       >
                         <div class="flex items-center justify-between gap-3">
@@ -1047,12 +1514,10 @@ defmodule KonevoWeb.AutomationLive.Index do
                         />
                         <div class="space-y-4">
                           <.input field={@sequence_form[:name]} type="text" label={gettext("Name")} />
-                          <.input
+                          <.action_mode_select
                             :if={@selected_workflow != "inbound_email_reply"}
                             field={@sequence_form[:mode]}
-                            type="select"
-                            label={gettext("Action mode")}
-                            options={mode_options(@selected_workflow)}
+                            workflow={@selected_workflow}
                           />
                           <div
                             :if={@selected_workflow == "inbound_email_reply"}
@@ -1072,27 +1537,10 @@ defmodule KonevoWeb.AutomationLive.Index do
                             min="1"
                           />
                           <.input
-                            :if={@selected_workflow != "inbound_email_reply"}
+                            :if={@selected_workflow == "no_reply_follow_up"}
                             field={@sequence_form[:subject]}
                             type="text"
-                            label={
-                              if(@selected_workflow == "inbound_email_task",
-                                do: gettext("Task title"),
-                                else: gettext("Email subject")
-                              )
-                            }
-                          />
-                          <.input
-                            :if={@selected_workflow != "inbound_email_reply"}
-                            field={@sequence_form[:body]}
-                            type="textarea"
-                            label={
-                              if(@selected_workflow == "inbound_email_task",
-                                do: gettext("AI task instructions"),
-                                else: gettext("Draft hint")
-                              )
-                            }
-                            class="w-full textarea min-h-24"
+                            label={gettext("Email subject")}
                           />
                           <.input
                             field={@sequence_form[:excluded_senders]}
@@ -1185,13 +1633,45 @@ defmodule KonevoWeb.AutomationLive.Index do
                             <p class="text-xs font-semibold uppercase text-base-content/40">
                               {gettext("Ignored")}
                             </p>
-                            <p class="mt-1 truncate text-sm font-medium text-base-content">
-                              {sequence_excluded_senders(@active_sequence)}
-                            </p>
+                            <details class="group relative mt-1">
+                              <summary
+                                class="flex w-full cursor-pointer list-none items-center gap-1.5 rounded-md text-left text-sm font-medium text-base-content outline-none transition-colors hover:bg-base-content/5 focus-visible:ring-2 focus-visible:ring-primary/40"
+                                title={sequence_excluded_senders(@active_sequence)}
+                              >
+                                <span class="min-w-0 flex-1 truncate">
+                                  {excluded_senders_preview(@active_sequence)}
+                                </span>
+                                <.icon
+                                  name="icon-[tabler--chevron-down]"
+                                  class="size-4 shrink-0 text-base-content/45 transition-transform duration-200 group-open:rotate-180"
+                                />
+                              </summary>
+                              <div class="absolute left-0 top-full z-30 mt-2 w-72 max-w-[calc(100vw-3rem)] rounded-lg border border-base-content/15 bg-base-100 p-2 shadow-lg shadow-base-content/10">
+                                <p class="px-2 py-1 text-xs font-semibold uppercase tracking-wide text-base-content/45">
+                                  {gettext("Ignored sender patterns")}
+                                </p>
+                                <ul class="max-h-48 space-y-1 overflow-y-auto p-1">
+                                  <li
+                                    :for={
+                                      sender <- sequence_excluded_sender_patterns(@active_sequence)
+                                    }
+                                    class="break-all rounded-md bg-base-200/55 px-2 py-1.5 font-mono text-xs text-base-content/75"
+                                  >
+                                    {sender}
+                                  </li>
+                                  <li
+                                    :if={sequence_excluded_sender_patterns(@active_sequence) == []}
+                                    class="px-2 py-1.5 text-xs text-base-content/50"
+                                  >
+                                    {gettext("No sender patterns are ignored.")}
+                                  </li>
+                                </ul>
+                              </div>
+                            </details>
                           </div>
                         </div>
 
-                        <div>
+                        <section class="max-w-3xl rounded-xl border border-base-content/15 bg-base-100 p-4 shadow-sm">
                           <h3 class="mb-3 text-sm font-semibold text-base-content">
                             {gettext("Workflow steps")}
                           </h3>
@@ -1205,7 +1685,7 @@ defmodule KonevoWeb.AutomationLive.Index do
                             <div
                               :for={{id, rule} <- @streams.rules}
                               id={id}
-                              class="flex items-center gap-3 rounded-lg border border-base-content/10 bg-base-200/35 p-3"
+                              class="flex items-center gap-3 rounded-lg border border-base-content/15 bg-base-200/35 p-3"
                             >
                               <div class="flex size-9 shrink-0 items-center justify-center rounded-md bg-base-100 text-primary ring-1 ring-base-content/10">
                                 <.icon name={rule_icon(rule.action_type)} class="size-5" />
@@ -1217,13 +1697,13 @@ defmodule KonevoWeb.AutomationLive.Index do
                                   </span>
                                   <.rule_delay seconds={display_rule_delay(rule)} />
                                 </div>
-                                <p class="mt-1 truncate text-xs text-base-content/50">
+                                <p class="mt-1 break-words text-xs leading-relaxed text-base-content/50">
                                   {rule_summary(rule)}
                                 </p>
                               </div>
                             </div>
                           </div>
-                        </div>
+                        </section>
                       </div>
                     </div>
                   </section>
@@ -1252,7 +1732,21 @@ defmodule KonevoWeb.AutomationLive.Index do
                     aria-label={gettext("Loading approvals")}
                   />
                 <% else %>
-                  <span class="badge badge-primary">{@task_approval_total}</span>
+                  <div class="flex items-center gap-2">
+                    <span class="badge badge-primary">{@task_approval_total}</span>
+                    <button
+                      :if={@task_approval_total > 0}
+                      id="clear-all-task-approvals"
+                      type="button"
+                      phx-click="clear_all_task_approvals"
+                      phx-disable-with={gettext("Clearing...")}
+                      data-confirm={gettext("Clear all task suggestions? This cannot be undone.")}
+                      class="btn btn-error btn-xs h-7 min-h-7 gap-1.5 shadow-sm"
+                    >
+                      <.icon name="icon-[tabler--trash]" class="size-3.5" />
+                      {gettext("Clear all")}
+                    </button>
+                  </div>
                 <% end %>
               </div>
 
@@ -1307,11 +1801,18 @@ defmodule KonevoWeb.AutomationLive.Index do
                         <h3 class="truncate text-sm font-semibold text-base-content">
                           {approval.title}
                         </h3>
-                        <p class="mt-1 truncate text-xs text-base-content/50">
-                          {task_approval_contact_label(approval)} | {task_approval_source_label(
-                            approval
-                          )}
-                        </p>
+                        <div class="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1">
+                          <p class="truncate text-xs text-base-content/50">
+                            {task_approval_contact_label(approval)} | {task_approval_source_label(
+                              approval
+                            )}
+                          </p>
+                          <.source_thread_link
+                            :if={approval.email_thread_id}
+                            id={"task-approval-source-thread-#{approval.id}"}
+                            thread_id={approval.email_thread_id}
+                          />
+                        </div>
                         <p class="mt-1 text-xs text-base-content/45">
                           {task_approval_confidence(approval.confidence)}
                         </p>
@@ -1347,12 +1848,9 @@ defmodule KonevoWeb.AutomationLive.Index do
                             type="datetime-local"
                             label={gettext("Due date")}
                           />
-                          <.input
+                          <.task_approval_priority_select
                             id={"task-approval-priority-#{approval.id}"}
                             field={task_form[:priority]}
-                            type="select"
-                            label={gettext("Priority")}
-                            options={task_priority_options()}
                           />
                         </div>
                         <div class="flex justify-end gap-2">
@@ -1399,7 +1897,21 @@ defmodule KonevoWeb.AutomationLive.Index do
                 <%= if @loading do %>
                   <span class="skeleton h-6 w-8 rounded-md" aria-label={gettext("Loading drafts")} />
                 <% else %>
-                  <span class="badge badge-primary">{@draft_total}</span>
+                  <div class="flex items-center gap-2">
+                    <span class="badge badge-primary">{@draft_total}</span>
+                    <button
+                      :if={@draft_total > 0}
+                      id="clear-all-drafts"
+                      type="button"
+                      phx-click="clear_all_drafts"
+                      phx-disable-with={gettext("Clearing...")}
+                      data-confirm={gettext("Clear all email drafts? This cannot be undone.")}
+                      class="btn btn-error btn-xs h-7 min-h-7 gap-1.5 shadow-sm"
+                    >
+                      <.icon name="icon-[tabler--trash]" class="size-3.5" />
+                      {gettext("Clear all")}
+                    </button>
+                  </div>
                 <% end %>
               </div>
 
@@ -1445,9 +1957,14 @@ defmodule KonevoWeb.AutomationLive.Index do
                         <h3 class="text-sm font-semibold text-base-content">
                           {draft.subject || gettext("(no subject)")}
                         </h3>
-                        <p class="text-xs text-base-content/50">
-                          {draft_contact_label(draft)}
-                        </p>
+                        <div class="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1">
+                          <p class="text-xs text-base-content/50">{draft_contact_label(draft)}</p>
+                          <.source_thread_link
+                            :if={draft.email_thread_id}
+                            id={"draft-source-thread-#{draft.id}"}
+                            thread_id={draft.email_thread_id}
+                          />
+                        </div>
                       </div>
                       <.draft_status_badge status={draft.status} />
                     </div>
@@ -1504,15 +2021,41 @@ defmodule KonevoWeb.AutomationLive.Index do
                       class="flex items-center justify-between gap-3"
                     >
                       <p class="line-clamp-2 text-sm text-base-content/65">{draft.body}</p>
-                      <button
-                        type="button"
-                        phx-click="send_draft"
-                        phx-value-id={draft.id}
-                        class="btn btn-primary btn-sm gap-2"
-                      >
-                        <.icon name="icon-[tabler--send]" class="size-4" />
-                        {gettext("Send")}
-                      </button>
+                      <div class="flex shrink-0 items-center gap-2">
+                        <%= if is_nil(draft.contact_id) do %>
+                          <button
+                            id={"create-draft-contact-#{draft.id}"}
+                            type="button"
+                            phx-click="create_draft_contact"
+                            phx-value-id={draft.id}
+                            class="btn btn-primary btn-sm gap-2"
+                          >
+                            <.icon name="icon-[tabler--user-plus]" class="size-4" />
+                            {gettext("Create contact & return to review")}
+                          </button>
+                        <% else %>
+                          <button
+                            id={"unapprove-draft-#{draft.id}"}
+                            type="button"
+                            phx-click="unapprove_draft"
+                            phx-value-id={draft.id}
+                            class="btn btn-ghost btn-sm gap-2"
+                          >
+                            <.icon name="icon-[tabler--arrow-back-up]" class="size-4" />
+                            {gettext("Return to review")}
+                          </button>
+                          <button
+                            id={"send-draft-#{draft.id}"}
+                            type="button"
+                            phx-click="send_draft"
+                            phx-value-id={draft.id}
+                            class="btn btn-primary btn-sm gap-2"
+                          >
+                            <.icon name="icon-[tabler--send]" class="size-4" />
+                            {gettext("Send")}
+                          </button>
+                        <% end %>
+                      </div>
                     </div>
                   </div>
                 </div>

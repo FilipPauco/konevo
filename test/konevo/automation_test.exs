@@ -5,6 +5,7 @@ defmodule Konevo.AutomationTest do
   import Konevo.Factory
 
   alias Konevo.Accounts.Scope
+  alias Konevo.AI
   alias Konevo.Automation
   alias Konevo.Automation.{Execution, Rule, Sequence, TaskApproval}
   alias Konevo.Compliance
@@ -525,6 +526,7 @@ defmodule Konevo.AutomationTest do
 
   describe "prepare_stale_inbound_follow_ups/3" do
     test "creates a pending approval draft for unanswered outbound replies" do
+      with_ai_response("Hello,\n\nI am following up.\n\nBest regards,")
       scope = build_scope()
       contact = contact_for(scope)
 
@@ -538,8 +540,7 @@ defmodule Konevo.AutomationTest do
 
       assert {:ok, [%MessageDraft{} = draft], []} =
                Automation.prepare_stale_inbound_follow_ups(scope, 3, %{
-                 subject: "Checking in",
-                 body: "Still interested?"
+                 subject: "Checking in"
                })
 
       assert draft.status == :pending
@@ -580,7 +581,14 @@ defmodule Konevo.AutomationTest do
 
   describe "prepare_active_no_reply_follow_ups/1" do
     test "manual workflow creates a pending follow-up draft" do
+      with_ai_response("Hello,\n\nI am following up on my previous email.\n\nBest regards,")
       scope = build_scope()
+
+      assert {:ok, _preference} =
+               AI.update_preference(scope, %{
+                 workspace_context: "Northstar Coffee sells commercial espresso machines.",
+                 email_instructions: "Keep replies concise and professional."
+               })
 
       contact =
         insert(:contact,
@@ -618,7 +626,7 @@ defmodule Konevo.AutomationTest do
 
       rule_for(scope, sequence,
         action_type: :prepare_follow_up,
-        action_config: %{"subject" => "Checking in", "body" => "Can I help?", "mode" => "manual"}
+        action_config: %{"subject" => "Checking in", "mode" => "manual"}
       )
 
       assert {:ok, [%MessageDraft{} = draft], []} =
@@ -626,11 +634,17 @@ defmodule Konevo.AutomationTest do
 
       assert draft.status == :pending
       assert draft.subject == "Checking in"
-      assert draft.body == "Can I help?"
+      assert draft.body == "Hello,\n\nI am following up on my previous email.\n\nBest regards,"
       assert draft.email_thread_id == thread.id
+
+      assert_received {:ai_complete, :reply_draft, [%{content: instructions}, _context]}
+      assert instructions =~ "Northstar Coffee sells commercial espresso machines"
+      assert instructions =~ "Keep replies concise and professional"
+      assert instructions =~ "The customer has not replied"
     end
 
     test "automatic workflow sends a follow-up without a separate consent record" do
+      with_ai_response("Hello,\n\nAre you still interested?\n\nBest regards,")
       scope = build_scope()
 
       contact =
@@ -670,8 +684,7 @@ defmodule Konevo.AutomationTest do
       rule_for(scope, sequence,
         action_type: :prepare_follow_up,
         action_config: %{
-          "subject" => "Automatic follow-up",
-          "body" => "Are you still interested?"
+          "subject" => "Automatic follow-up"
         }
       )
 
@@ -686,6 +699,7 @@ defmodule Konevo.AutomationTest do
     end
 
     test "starts a fresh one-day window after a newer outbound reply" do
+      with_ai_response("Hello,\n\nI am following up.\n\nBest regards,")
       scope = build_scope()
       contact = insert(:contact, organization: scope.org, user: scope.user)
       thread = stale_thread_for(scope, contact)
@@ -703,6 +717,7 @@ defmodule Konevo.AutomationTest do
     end
 
     test "automatic workflow sends a follow-up when consent is not recorded" do
+      with_ai_response("Hello,\n\nI am following up.\n\nBest regards,")
       scope = build_scope()
 
       contact =
@@ -750,6 +765,7 @@ defmodule Konevo.AutomationTest do
     end
 
     test "manual workflow draft can be approved and sent" do
+      with_ai_response("Hello,\n\nCan I help?\n\nBest regards,")
       scope = build_scope()
 
       contact =
@@ -762,10 +778,7 @@ defmodule Konevo.AutomationTest do
       Compliance.record_consent(contact, :email, :manual)
       thread = stale_thread_for(scope, contact)
 
-      no_reply_sequence_for(scope, "manual", %{}, %{
-        "subject" => "Checking in",
-        "body" => "Can I help?"
-      })
+      no_reply_sequence_for(scope, "manual", %{}, %{"subject" => "Checking in"})
 
       assert {:ok, [draft], []} = Automation.prepare_active_no_reply_follow_ups(scope)
       assert {:ok, approved} = Messaging.approve_draft(scope, draft)
@@ -778,6 +791,7 @@ defmodule Konevo.AutomationTest do
     end
 
     test "manual workflow draft can be rejected without sending" do
+      with_ai_response("Hello,\n\nI am following up.\n\nBest regards,")
       scope = build_scope()
 
       contact =
@@ -799,6 +813,7 @@ defmodule Konevo.AutomationTest do
     end
 
     test "automatic workflow does not persist a draft for a suppressed contact" do
+      with_ai_response("Hello,\n\nI am following up.\n\nBest regards,")
       scope = build_scope()
 
       contact =
@@ -820,6 +835,7 @@ defmodule Konevo.AutomationTest do
     end
 
     test "creates one follow-up when multiple active workflows match a thread" do
+      with_ai_response("Hello,\n\nI am following up.\n\nBest regards,")
       scope = build_scope()
       thread = stale_thread_for(scope, contact_for(scope))
 
@@ -1007,6 +1023,32 @@ defmodule Konevo.AutomationTest do
       refute Repo.get_by(Task, organization_id: scope.org.id, source_email_id: email.id)
     end
 
+    test "ignores emails received before the task workflow was activated" do
+      scope = build_scope()
+
+      email =
+        insert(:email,
+          organization: scope.org,
+          thread: insert(:email_thread, organization: scope.org),
+          is_inbound: true,
+          received_at: DateTime.add(DateTime.utc_now(:second), -5, :minute)
+        )
+
+      sequence =
+        sequence_for(scope,
+          status: :active,
+          activated_at: DateTime.utc_now(:second),
+          trigger_type: :inbound_email_received,
+          trigger_config: %{"workflow_type" => "inbound_email_task", "mode" => "manual"}
+        )
+
+      rule_for(scope, sequence, action_type: :prepare_task)
+
+      assert {:ok, [], []} = Automation.prepare_inbound_email_tasks(scope, email)
+      refute Repo.get_by(Task, organization_id: scope.org.id, source_email_id: email.id)
+      refute Repo.get_by(TaskApproval, organization_id: scope.org.id, email_id: email.id)
+    end
+
     test "automatic workflow creates extracted tasks from an inbound email" do
       with_ai_response(%{
         tasks: [
@@ -1131,6 +1173,38 @@ defmodule Konevo.AutomationTest do
       assert Enum.all?(approvals, &(&1.status == :pending))
       assert Enum.all?(approvals, &(&1.email_id == email.id))
       refute Repo.get_by(Task, organization_id: scope.org.id, source_email_id: email.id)
+    end
+
+    test "rejects every pending task suggestion in the review queue" do
+      with_ai_response(%{
+        tasks: [
+          %{title: "Call lead", confidence: 0.8},
+          %{title: "Send pricing", priority: "high", confidence: 0.9}
+        ]
+      })
+
+      scope = build_scope()
+
+      sequence =
+        sequence_for(scope,
+          status: :active,
+          activated_at: DateTime.add(DateTime.utc_now(:second), -1, :second),
+          trigger_type: :inbound_email_received,
+          trigger_config: %{"workflow_type" => "inbound_email_task", "mode" => "manual"}
+        )
+
+      rule_for(scope, sequence, action_type: :prepare_task)
+
+      email =
+        insert(:email,
+          organization: scope.org,
+          thread: insert(:email_thread, organization: scope.org),
+          is_inbound: true
+        )
+
+      assert {:ok, approvals, []} = Automation.prepare_inbound_email_tasks(scope, email)
+      assert {:ok, 2} = Automation.reject_all_task_approvals(scope)
+      assert Enum.all?(approvals, &(Repo.reload!(&1).status == :rejected))
     end
 
     test "approving a task approval creates the task" do

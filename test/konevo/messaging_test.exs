@@ -6,6 +6,7 @@ defmodule Konevo.MessagingTest do
 
   alias Konevo.Accounts.Scope
   alias Konevo.Compliance
+  alias Konevo.Inbox
   alias Konevo.Messaging
   alias Konevo.Messaging.{MessageDraft, MessageSent}
 
@@ -78,6 +79,21 @@ defmodule Konevo.MessagingTest do
       assert total == 5
       assert length(page1) == 2
       refute Enum.any?(page1, fn d -> d.id in Enum.map(page2, & &1.id) end)
+    end
+
+    test "preloads a draft's source email", %{scope: scope} do
+      email =
+        insert(:email,
+          organization: scope.org,
+          thread: insert(:email_thread, organization: scope.org),
+          from: "martin@example.com"
+        )
+
+      draft_fixture(scope, %{source_email_id: email.id})
+
+      {[draft], 1} = Messaging.list_drafts(scope)
+
+      assert draft.source_email.from == "martin@example.com"
     end
   end
 
@@ -174,6 +190,56 @@ defmodule Konevo.MessagingTest do
     end
   end
 
+  describe "unapprove_draft/2" do
+    test "returns an approved draft to review", %{scope: scope} do
+      draft = draft_fixture(scope, %{status: :pending})
+      {:ok, approved} = Messaging.approve_draft(scope, draft)
+
+      assert {:ok, review_draft} = Messaging.unapprove_draft(scope, approved)
+      assert review_draft.status == :pending
+      assert review_draft.approved_by_id == nil
+      assert review_draft.approved_at == nil
+    end
+
+    test "does not return a pending draft to review", %{scope: scope} do
+      draft = draft_fixture(scope, %{status: :pending})
+
+      assert {:error, :not_approved} = Messaging.unapprove_draft(scope, draft)
+    end
+  end
+
+  describe "create_contact_and_unapprove_draft/2" do
+    test "creates and links the sender contact before returning the draft to review", %{
+      scope: scope
+    } do
+      thread = insert(:email_thread, organization: scope.org)
+
+      insert(:email,
+        organization: scope.org,
+        thread: thread,
+        from: "martin@example.com"
+      )
+
+      draft = draft_fixture(scope, %{status: :approved, email_thread: thread})
+
+      assert {:ok, %{contact: contact, draft: review_draft}} =
+               Messaging.create_contact_and_unapprove_draft(scope, draft)
+
+      assert contact.email == "martin@example.com"
+      assert review_draft.status == :pending
+      assert review_draft.contact_id == contact.id
+      assert Inbox.get_thread!(scope, thread.id).contact_id == contact.id
+    end
+
+    test "requires an inbound sender", %{scope: scope} do
+      thread = insert(:email_thread, organization: scope.org)
+      draft = draft_fixture(scope, %{status: :approved, email_thread: thread})
+
+      assert {:error, :missing_sender} =
+               Messaging.create_contact_and_unapprove_draft(scope, draft)
+    end
+  end
+
   # ---------------------------------------------------------------------------
   # Drafts — reject
   # ---------------------------------------------------------------------------
@@ -188,6 +254,23 @@ defmodule Konevo.MessagingTest do
     test "cannot reject an already-approved draft", %{scope: scope} do
       draft = draft_fixture(scope, %{status: :approved})
       assert {:error, :not_pending} = Messaging.reject_draft(scope, draft)
+    end
+  end
+
+  describe "reject_all_review_drafts/1" do
+    test "rejects every pending or approved draft in the current organization", %{scope: scope} do
+      pending = draft_fixture(scope, %{status: :pending})
+      approved = draft_fixture(scope, %{status: :approved})
+      sent = draft_fixture(scope, %{status: :sent})
+
+      other_scope = build_scope()
+      other_draft = draft_fixture(other_scope, %{status: :pending})
+
+      assert {:ok, 2} = Messaging.reject_all_review_drafts(scope)
+      assert Messaging.get_draft!(scope, pending.id).status == :rejected
+      assert Messaging.get_draft!(scope, approved.id).status == :rejected
+      assert Messaging.get_draft!(scope, sent.id).status == :sent
+      assert Messaging.get_draft!(other_scope, other_draft.id).status == :pending
     end
   end
 

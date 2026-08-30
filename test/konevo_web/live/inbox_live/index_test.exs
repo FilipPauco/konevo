@@ -73,8 +73,11 @@ defmodule KonevoWeb.InboxLive.IndexTest do
 
       _html = render_async(view, 1000)
 
-      assert has_element?(view, "#inbox-threads")
+      assert has_element?(view, "#inbox-threads.border-t")
       assert has_element?(view, "#thread-select-#{thread.id}")
+      assert has_element?(view, "#thread-select-mobile-#{thread.id}")
+      assert has_element?(view, "#thread-sender-mobile-#{thread.id}")
+      assert has_element?(view, "#thread-category-#{thread.id}-mobile button.rounded-full")
 
       document =
         view
@@ -166,9 +169,10 @@ defmodule KonevoWeb.InboxLive.IndexTest do
         |> live(~p"/inbox")
 
       view
-      |> element("button[phx-click='open_compose']")
+      |> element("#inbox-mobile-compose")
       |> render_click()
 
+      assert has_element?(view, "#compose-window.inbox-compose-window")
       assert has_element?(view, "#compose-form")
       assert has_element?(view, "#compose-schedule-menu")
       assert has_element?(view, "#compose_scheduled_at")
@@ -181,7 +185,7 @@ defmodule KonevoWeb.InboxLive.IndexTest do
         |> live(~p"/inbox")
 
       view
-      |> element("button[phx-click='open_compose']")
+      |> element("#inbox-desktop-compose")
       |> render_click()
 
       view
@@ -207,7 +211,7 @@ defmodule KonevoWeb.InboxLive.IndexTest do
         |> live(~p"/inbox")
 
       view
-      |> element("button[phx-click='open_compose']")
+      |> element("#inbox-desktop-compose")
       |> render_click()
 
       view
@@ -236,7 +240,7 @@ defmodule KonevoWeb.InboxLive.IndexTest do
         |> live(~p"/inbox")
 
       view
-      |> element("button[phx-click='open_compose']")
+      |> element("#inbox-desktop-compose")
       |> render_click()
 
       view
@@ -315,7 +319,7 @@ defmodule KonevoWeb.InboxLive.IndexTest do
         |> live(~p"/inbox")
 
       view
-      |> element("button[phx-click='open_compose']")
+      |> element("#inbox-desktop-compose")
       |> render_click()
 
       view

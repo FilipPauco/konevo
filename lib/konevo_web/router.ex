@@ -20,7 +20,7 @@ defmodule KonevoWeb.Router do
 
     plug(:put_secure_browser_headers, %{
       "content-security-policy" =>
-        "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: blob: https://*.googleusercontent.com; font-src 'self' https://fonts.gstatic.com; connect-src 'self' ws: wss:; frame-ancestors 'none'"
+        "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: blob: https://*.googleusercontent.com https://www.gstatic.com; font-src 'self' https://fonts.gstatic.com; connect-src 'self' ws: wss:; frame-ancestors 'none'"
     })
 
     plug(:fetch_current_scope_for_user)
@@ -169,6 +169,7 @@ defmodule KonevoWeb.Router do
       # Public presentation. It works without authentication while signed-in users
       # still receive their normal scope.
       live("/", TestLandingLive, :index)
+      live("/demo", WorkflowDemoLive, :index)
       live("/users/log-in", UserLive.Login, :new)
       live("/users/log-in/:token", UserLive.Confirmation, :new)
       live("/users/two-factor", UserLive.TwoFactor, :new)

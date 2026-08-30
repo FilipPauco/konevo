@@ -77,15 +77,13 @@ const EmailSelectionActions = {
     const doc = this.iframeDocument(iframe)
     if (!doc) return
 
-    const pageStyles = window.getComputedStyle(document.documentElement)
     const root = doc.documentElement
-    const theme = document.documentElement.dataset.theme || "corporate"
 
-    root.dataset.theme = theme
-    root.style.setProperty("color-scheme", theme === "vscode" ? "dark" : "light")
-    root.style.setProperty("--email-background", pageStyles.getPropertyValue("--color-base-100"))
-    root.style.setProperty("--email-foreground", pageStyles.getPropertyValue("--color-base-content"))
-    root.style.setProperty("--email-link", pageStyles.getPropertyValue("--color-primary"))
+    root.dataset.theme = "corporate"
+    root.style.setProperty("color-scheme", "light")
+    root.style.setProperty("--email-background", "#fffaf3")
+    root.style.setProperty("--email-foreground", "#332c25")
+    root.style.setProperty("--email-link", "#2563eb")
   },
 
   bindIframeDocument(iframe) {

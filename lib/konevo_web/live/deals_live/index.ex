@@ -26,7 +26,8 @@ defmodule KonevoWeb.DealsLive.Index do
      |> assign(:stages_with_deals, [])
      |> assign(:deal, nil)
      |> assign(:pipeline_total, Decimal.new(0))
-     |> assign(:pipeline_count, 0)}
+     |> assign(:pipeline_count, 0)
+     |> assign(:return_to, ~p"/deals")}
   end
 
   @impl true
@@ -37,7 +38,7 @@ defmodule KonevoWeb.DealsLive.Index do
       |> load_board()
       |> apply_action(socket.assigns.live_action, params)
 
-    {:noreply, socket}
+    {:noreply, assign(socket, :return_to, build_url(socket, %{}))}
   end
 
   defp apply_filter_params(socket, params) do
@@ -196,7 +197,7 @@ defmodule KonevoWeb.DealsLive.Index do
          {:ok, _} <- Deals.delete_deal(scope, deal) do
       {:noreply,
        socket
-       |> put_flash(:success, gettext("Deal deleted successfully"))
+       |> put_flash(:success, gettext("Deal deleted"))
        |> load_board()}
     else
       :error ->
@@ -442,6 +443,21 @@ defmodule KonevoWeb.DealsLive.Index do
           assigns.min_probability > 0 or assigns.close_from != "" or assigns.close_to != "" or
           assigns.sources != [] or assigns.archive_filter != :active
       )
+      |> assign(
+        :filter_controls_active?,
+        assigns.stage_ids != [] or assigns.min_value > 0 or assigns.min_probability > 0 or
+          assigns.close_from != "" or assigns.close_to != "" or assigns.sources != [] or
+          assigns.archive_filter != :active
+      )
+      |> assign(
+        :filter_controls_count,
+        length(assigns.stage_ids) +
+          if(assigns.min_value > 0, do: 1, else: 0) +
+          if(assigns.min_probability > 0, do: 1, else: 0) +
+          if(assigns.close_from != "", do: 1, else: 0) +
+          if(assigns.close_to != "", do: 1, else: 0) +
+          length(assigns.sources) + if(assigns.archive_filter != :active, do: 1, else: 0)
+      )
 
     ~H"""
     <Layouts.app flash={@flash} current_scope={@current_scope} current_path={@current_path}>
@@ -459,7 +475,7 @@ defmodule KonevoWeb.DealsLive.Index do
         <%!-- Toolbar --%>
         <div class="mb-4 flex flex-wrap items-center gap-2">
           <%!-- Search --%>
-          <div class="relative w-56 shrink-0">
+          <div class="relative w-full shrink-0 sm:w-56">
             <.icon
               name="icon-[tabler--search]"
               class="pointer-events-none absolute left-2.5 top-1/2 z-10 size-3.5 -translate-y-1/2 text-base-content/40"
@@ -489,53 +505,77 @@ defmodule KonevoWeb.DealsLive.Index do
             </button>
           </div>
 
-          <.archive_filter_dropdown
-            id="deals-archive-filter"
-            selected={@archive_filter}
-            options={archive_filter_options()}
-          />
+          <div class="hidden sm:block">
+            <.archive_filter_dropdown
+              id="deals-archive-filter"
+              selected={@archive_filter}
+              options={archive_filter_options()}
+            />
+          </div>
 
           <%!-- Filter dropdowns --%>
           <%!-- Mobile filter toggle --%>
-          <button
-            type="button"
-            class={[
-              "btn btn-sm gap-1.5 border select-none sm:hidden",
-              if(@filters_active?,
-                do: "border-primary/50 bg-primary/10 text-primary hover:bg-primary/15",
-                else:
-                  "border-base-content/20 bg-base-100 text-base-content hover:border-base-content/30"
-              )
-            ]}
-            phx-click={
-              JS.toggle(
-                to: "#deals-filter-panel",
-                display: "flex",
-                in:
-                  {"transition ease-out duration-200", "opacity-0 -translate-y-1",
-                   "opacity-100 translate-y-0"},
-                out:
-                  {"transition ease-in duration-150", "opacity-100 translate-y-0",
-                   "opacity-0 -translate-y-1"}
-              )
-              |> JS.toggle_class("rotate-180", to: "#deals-filter-chevron")
-            }
-          >
-            <span class="icon-[tabler--adjustments-horizontal] size-3.5" />
-            {gettext("Filters")}
-            <span
-              :if={@filters_active?}
-              class="size-2 rounded-full bg-primary"
-            />
-            <span
-              id="deals-filter-chevron"
-              class="icon-[tabler--chevron-down] size-3.5 opacity-50 transition-transform duration-200"
-            />
-          </button>
+          <div class="flex items-center gap-2 sm:hidden">
+            <button
+              type="button"
+              class={[
+                "btn btn-sm gap-1.5 border select-none",
+                if(@filter_controls_active?,
+                  do: "border-primary/50 bg-primary/10 text-primary hover:bg-primary/15",
+                  else:
+                    "border-base-content/20 bg-base-100 text-base-content hover:border-base-content/30"
+                )
+              ]}
+              phx-click={
+                JS.toggle(
+                  to: "#deals-filter-panel",
+                  display: "flex",
+                  in:
+                    {"transition ease-out duration-200", "opacity-0 -translate-y-1",
+                     "opacity-100 translate-y-0"},
+                  out:
+                    {"transition ease-in duration-150", "opacity-100 translate-y-0",
+                     "opacity-0 -translate-y-1"}
+                )
+                |> JS.toggle_class("rotate-180", to: "#deals-filter-chevron")
+              }
+            >
+              <span class="icon-[tabler--adjustments-horizontal] size-3.5" />
+              {gettext("Filters")}
+              <span
+                :if={@filter_controls_active?}
+                class="flex size-4 items-center justify-center rounded-full bg-primary text-[10px] font-bold text-primary-content"
+              >
+                {@filter_controls_count}
+              </span>
+              <span
+                id="deals-filter-chevron"
+                class="icon-[tabler--chevron-down] size-3.5 opacity-50 transition-transform duration-200"
+              />
+            </button>
+            <button
+              :if={@filter_controls_active?}
+              id="deals-clear-filters-mobile"
+              phx-click="clear_filters"
+              type="button"
+              aria-label={gettext("Clear filters")}
+              class="btn btn-sm btn-square border border-base-content/20 bg-base-100 text-base-content/60 transition-all hover:border-base-content/30 hover:text-base-content"
+            >
+              <.icon name="icon-[tabler--x]" class="size-3.5" />
+            </button>
+          </div>
           <div
             id="deals-filter-panel"
-            class="hidden flex-wrap items-center gap-2 sm:flex"
+            class="hidden w-full flex-wrap items-center gap-2 rounded-xl border border-secondary/35 bg-secondary/10 p-3 sm:w-auto sm:rounded-none sm:border-0 sm:bg-transparent sm:p-0 sm:flex"
           >
+            <div class="sm:hidden">
+              <.archive_filter_dropdown
+                id="deals-archive-filter-mobile"
+                selected={@archive_filter}
+                options={archive_filter_options()}
+              />
+            </div>
+
             <%!-- Stage filter --%>
             <div class="relative" id="deal-stage-filter-dropdown" phx-hook="FilterPanel">
               <button
@@ -755,20 +795,20 @@ defmodule KonevoWeb.DealsLive.Index do
                 </div>
               </div>
             </div>
-
-            <%!-- Clear all filters --%>
-            <button
-              :if={@filters_active?}
-              phx-click="clear_filters"
-              type="button"
-              class="btn btn-sm gap-1.5 border border-base-content/20 bg-base-100 text-base-content/60 transition-all hover:border-base-content/30 hover:text-base-content"
-            >
-              <.icon name="icon-[tabler--x]" class="size-3" />
-              {gettext("Clear filters")}
-            </button>
+            <div :if={@filters_active?} class="hidden border-l border-base-content/15 pl-2 sm:block">
+              <button
+                id="deals-clear-filters"
+                phx-click="clear_filters"
+                type="button"
+                class="btn btn-sm gap-1.5 border border-base-content/20 bg-base-100 text-base-content/60 transition-all hover:border-base-content/30 hover:text-base-content"
+              >
+                <.icon name="icon-[tabler--x]" class="size-3" />
+                {gettext("Clear filters")}
+              </button>
+            </div>
           </div>
 
-          <div class="ml-auto flex flex-wrap items-center gap-2">
+          <div id="deals-toolbar-actions" class="ml-auto flex shrink-0 flex-wrap items-center gap-2">
             <span class="badge badge-sm border border-base-content/20 bg-base-100 text-base-content/60 font-medium">
               {@pipeline_count} {gettext("deals")}
             </span>
@@ -849,7 +889,11 @@ defmodule KonevoWeb.DealsLive.Index do
                       {gettext("No deals in this stage")}
                     </div>
                     <%= for deal <- deals do %>
-                      <Components.deal_card id={"m-deal-#{deal.id}"} deal={deal} />
+                      <Components.deal_card
+                        id={"m-deal-#{deal.id}"}
+                        deal={deal}
+                        return_to={@return_to}
+                      />
                     <% end %>
                   </div>
                 </div>
@@ -909,7 +953,11 @@ defmodule KonevoWeb.DealsLive.Index do
                         </div>
 
                         <%= for deal <- deals do %>
-                          <Components.deal_card id={"deal-#{deal.id}"} deal={deal} />
+                          <Components.deal_card
+                            id={"deal-#{deal.id}"}
+                            deal={deal}
+                            return_to={@return_to}
+                          />
                         <% end %>
                       </div>
                     </div>
@@ -919,7 +967,7 @@ defmodule KonevoWeb.DealsLive.Index do
                       type="button"
                       class={[
                         "absolute left-60 top-1/2 z-30 flex size-7 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border border-base-content/20",
-                        "bg-base-100 text-base-content/70 shadow-lg shadow-base-content/15 transition-all",
+                        "bg-base-100 text-base-content/70 shadow-sm shadow-base-content/10 transition-all",
                         "hover:scale-105 hover:border-primary/30 hover:bg-primary/10 hover:text-primary"
                       ]}
                       title={gettext("Collapse column")}
@@ -951,7 +999,7 @@ defmodule KonevoWeb.DealsLive.Index do
         :if={@live_action in [:new, :edit]}
         id="deal-modal"
         show
-        on_cancel={JS.patch(~p"/deals")}
+        on_cancel={JS.patch(@return_to)}
       >
         <.live_component
           module={FormComponent}
@@ -960,7 +1008,7 @@ defmodule KonevoWeb.DealsLive.Index do
           title={if @live_action == :new, do: gettext("New deal"), else: gettext("Edit deal")}
           deal={@deal}
           current_scope={@current_scope}
-          patch={~p"/deals"}
+          patch={@return_to}
         />
       </.modal>
     </Layouts.app>

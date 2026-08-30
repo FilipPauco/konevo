@@ -23,7 +23,10 @@ defmodule KonevoWeb.TasksLive.DrawerComponent do
         progress: &handle_task_attachment_progress/3
       )
 
-    {:ok, assign(socket, :task_data, AsyncResult.loading())}
+    {:ok,
+     socket
+     |> assign(:task_data, AsyncResult.loading())
+     |> assign(:editing_title, false)}
   end
 
   @impl true
@@ -119,6 +122,51 @@ defmodule KonevoWeb.TasksLive.DrawerComponent do
 
       {:error, _} ->
         {:noreply, put_flash(socket, :error, gettext("Failed to save notes"))}
+    end
+  end
+
+  def handle_event("start_title_edit", _params, socket) do
+    {:noreply, assign(socket, :editing_title, socket.assigns.task_data.ok?)}
+  end
+
+  def handle_event("cancel_title_edit", _params, socket) do
+    {:noreply, assign(socket, :editing_title, false)}
+  end
+
+  def handle_event("save_title", %{"task" => %{"title" => title}}, socket) do
+    with true <- socket.assigns.task_data.ok?,
+         task <- socket.assigns.task_data.result.task,
+         scope <- socket.assigns.current_scope do
+      case Tasks.update_task(scope, task, %{title: title}) do
+        {:ok, updated_task} ->
+          send(self(), {__MODULE__, {:updated, :title}})
+
+          updated_task = Tasks.get_task!(scope, updated_task.id)
+          new_form = to_form(Tasks.change_task(updated_task), as: :task)
+          new_result = %{socket.assigns.task_data.result | task: updated_task, form: new_form}
+
+          {:noreply,
+           socket
+           |> assign(:editing_title, false)
+           |> assign(:task_data, AsyncResult.ok(new_result))}
+
+        {:error, :unauthorized} ->
+          {:noreply, put_flash(socket, :error, gettext("You cannot update this task"))}
+
+        {:error, %Ecto.Changeset{} = changeset} ->
+          form = to_form(%{changeset | action: :validate}, as: :task)
+          new_result = %{socket.assigns.task_data.result | form: form}
+
+          {:noreply,
+           socket
+           |> assign(:task_data, AsyncResult.ok(new_result))
+           |> put_flash(:error, gettext("Please enter a task title"))}
+
+        {:error, _reason} ->
+          {:noreply, put_flash(socket, :error, gettext("Failed to update task title"))}
+      end
+    else
+      false -> {:noreply, socket}
     end
   end
 
@@ -334,9 +382,62 @@ defmodule KonevoWeb.TasksLive.DrawerComponent do
                 </div>
 
                 <div class="min-w-0 flex-1">
-                  <h2 class="text-base font-semibold leading-tight text-base-content">
-                    {task.title}
-                  </h2>
+                  <%= if @editing_title do %>
+                    <.form
+                      for={form}
+                      id={"task-title-edit-form-#{task.id}"}
+                      phx-submit="save_title"
+                      phx-target={@myself}
+                      class="flex items-start gap-1.5"
+                    >
+                      <div class="min-w-0 flex-1">
+                        <.input
+                          field={form[:title]}
+                          type="text"
+                          id={"task-title-input-#{task.id}"}
+                          phx-mounted={JS.focus(to: "#task-title-input-#{task.id}")}
+                          class="input input-sm h-8 w-full border-base-content/20 bg-base-100 text-sm font-semibold text-base-content shadow-sm transition-colors focus:border-primary focus:outline-none"
+                        />
+                      </div>
+                      <button
+                        id={"save-task-title-#{task.id}"}
+                        type="submit"
+                        class="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-md bg-primary text-primary-content shadow-sm transition-all hover:brightness-95 focus:outline-none focus:ring-2 focus:ring-primary/30"
+                        aria-label={gettext("Save task title")}
+                      >
+                        <.icon name="icon-[tabler--check]" class="size-3.5" />
+                      </button>
+                      <button
+                        id={"cancel-task-title-edit-#{task.id}"}
+                        type="button"
+                        phx-click="cancel_title_edit"
+                        phx-target={@myself}
+                        class="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-md bg-neutral text-neutral-content shadow-sm transition-colors hover:bg-neutral/85 focus:outline-none focus:ring-2 focus:ring-neutral/30"
+                        aria-label={gettext("Cancel editing task title")}
+                      >
+                        <.icon name="icon-[tabler--x]" class="size-3.5" />
+                      </button>
+                    </.form>
+                  <% else %>
+                    <div class="group flex min-w-0 items-center gap-1.5">
+                      <h2
+                        id={"task-drawer-title-#{task.id}"}
+                        class="min-w-0 truncate text-base font-semibold leading-tight text-base-content"
+                      >
+                        {task.title}
+                      </h2>
+                      <button
+                        id={"edit-task-title-#{task.id}"}
+                        type="button"
+                        phx-click="start_title_edit"
+                        phx-target={@myself}
+                        class="flex size-6 shrink-0 items-center justify-center rounded-md border border-primary/20 bg-primary/10 text-primary/75 transition-colors hover:bg-primary/15 hover:text-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+                        aria-label={gettext("Edit task title")}
+                      >
+                        <.icon name="icon-[tabler--pencil]" class="size-3" />
+                      </button>
+                    </div>
+                  <% end %>
 
                   <p class="mt-0.5 text-xs text-base-content/50">
                     {gettext("Task")}
@@ -368,7 +469,7 @@ defmodule KonevoWeb.TasksLive.DrawerComponent do
                           {gettext("Status")}
                         </p>
 
-                        <div class="flex flex-col items-start gap-1.5">
+                        <div class="w-full">
                           <.status_pill
                             task_id={task.id}
                             status={task_status(task)}
@@ -404,39 +505,45 @@ defmodule KonevoWeb.TasksLive.DrawerComponent do
                           phx-change="update_due_date"
                           phx-target={@myself}
                         >
-                          <.date_picker
-                            field={form[:due_date]}
-                            id={"task-due-date-#{task.id}"}
-                            value={datetime_input_value(task.due_date)}
-                            date_format="Y-m-d\\TH:i"
-                            enable_time={true}
-                            time_24hr={true}
-                            minute_increment={15}
-                            alt_input={true}
-                            alt_format="M j, Y H:i"
-                            placeholder={gettext("Select date and time")}
-                            required
-                            class="h-8 w-full input input-sm border-base-content/15 bg-base-100 text-xs text-base-content transition-colors focus:border-primary focus:outline-none"
-                          />
+                          <div class="relative">
+                            <.date_picker
+                              field={form[:due_date]}
+                              id={"task-due-date-#{task.id}"}
+                              value={datetime_input_value(task.due_date)}
+                              date_format="Y-m-d\\TH:i"
+                              enable_time={true}
+                              time_24hr={true}
+                              minute_increment={15}
+                              alt_input={true}
+                              alt_format="M j, Y H:i"
+                              placeholder={gettext("Select date and time")}
+                              required
+                              class="h-8 w-full input input-sm border-base-content/40 bg-base-100 pl-8 text-xs text-base-content transition-colors hover:border-base-content/60 focus:border-primary focus:outline-none"
+                            />
+                            <.icon
+                              id={"task-due-date-icon-#{task.id}"}
+                              name="icon-[tabler--calendar]"
+                              class="pointer-events-none absolute left-2.5 top-4 z-10 size-3.5 -translate-y-1/2 text-base-content/45"
+                            />
+                          </div>
                         </.form>
                       </div>
-
-                      <%= if task.task_type do %>
-                        <div>
-                          <p class="mb-1.5 text-xs font-medium text-base-content/50">
-                            {gettext("Type")}
-                          </p>
-
-                          <span
-                            class="inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs font-medium"
-                            style={drawer_chip_style(task)}
-                          >
-                            <.icon name={drawer_task_icon(task)} class="size-3 shrink-0" /> {task.task_type.name}
-                          </span>
-                        </div>
-                      <% end %>
                     </div>
-                    <.task_rule_summary task={task} />
+                    <div class="flex flex-wrap items-end gap-x-4 gap-y-3">
+                      <div :if={task.task_type}>
+                        <p class="mb-1.5 text-xs font-medium text-base-content/50">
+                          {gettext("Type")}
+                        </p>
+
+                        <span
+                          class="inline-flex h-8 items-center gap-1.5 rounded-md border px-2.5 text-xs font-medium"
+                          style={drawer_chip_style(task)}
+                        >
+                          <.icon name={drawer_task_icon(task)} class="size-3 shrink-0" /> {task.task_type.name}
+                        </span>
+                      </div>
+                      <.task_rule_summary task={task} />
+                    </div>
                     <div
                       :if={!!task.contact or !!task.deal}
                       class="grid grid-cols-1 gap-4 md:grid-cols-2"
@@ -826,12 +933,12 @@ defmodule KonevoWeb.TasksLive.DrawerComponent do
     <div
       id={"status-pill-#{@task_id}#{@id_suffix}"}
       phx-hook={if(@readonly, do: nil, else: "RowMenu")}
-      class="relative"
+      class="relative w-full"
     >
       <%= if @readonly do %>
         <span
           title={@readonly_reason}
-          class="inline-flex w-full items-center gap-1 rounded-md border px-2.5 py-1 text-xs font-medium"
+          class="inline-flex h-8 w-full items-center gap-1 rounded-md border px-2.5 text-xs font-medium"
           style={pill_style_muted(@color)}
         >
           <.icon name={@icon} class="size-3 shrink-0" /> {@label}
@@ -841,7 +948,7 @@ defmodule KonevoWeb.TasksLive.DrawerComponent do
           type="button"
           data-toggle
           aria-label={gettext("Change status")}
-          class="inline-flex w-full cursor-pointer items-center gap-1 rounded-md border px-2.5 py-1 text-xs font-medium transition-opacity hover:opacity-80"
+          class="inline-flex h-8 w-full cursor-pointer items-center gap-1 rounded-md border px-2.5 text-xs font-medium transition-opacity hover:opacity-80"
           style={pill_style(@color)}
         >
           <.icon name={@icon} class="size-3 shrink-0" /> {@label}
@@ -859,7 +966,7 @@ defmodule KonevoWeb.TasksLive.DrawerComponent do
               phx-value-id={@task_id}
               phx-value-status={val}
               phx-target={@myself}
-              class="inline-flex w-full cursor-pointer items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs font-medium transition-opacity hover:opacity-85"
+              class="inline-flex h-8 w-full cursor-pointer items-center gap-1.5 rounded-md border px-2.5 text-xs font-medium transition-opacity hover:opacity-85"
               style={pill_style_option(color, @status == val)}
               role="menuitem"
             >
@@ -888,7 +995,7 @@ defmodule KonevoWeb.TasksLive.DrawerComponent do
 
   defp priority_pill(assigns) do
     all_priorities = [
-      {:low, "#64748b", "icon-[tabler--arrow-down]", gettext("Low")},
+      {:low, "#94a3b8", "icon-[tabler--arrow-down]", gettext("Low")},
       {:normal, "#3b82f6", "icon-[tabler--arrow-right]", gettext("Normal")},
       {:high, "#f97316", "icon-[tabler--arrow-up]", gettext("High")},
       {:urgent, "#ef4444", "icon-[tabler--alert-triangle]", gettext("Urgent")}
@@ -897,7 +1004,7 @@ defmodule KonevoWeb.TasksLive.DrawerComponent do
     {color, icon, label} =
       all_priorities
       |> Enum.find(
-        {:unknown, "#64748b", "icon-[tabler--minus]", Phoenix.Naming.humanize(assigns.priority)},
+        {:unknown, "#94a3b8", "icon-[tabler--minus]", Phoenix.Naming.humanize(assigns.priority)},
         fn {p, _, _, _} -> p == assigns.priority end
       )
       |> then(fn {_, c, i, l} -> {c, i, l} end)
@@ -916,10 +1023,11 @@ defmodule KonevoWeb.TasksLive.DrawerComponent do
         type="button"
         data-toggle
         aria-label={gettext("Change priority")}
-        class="inline-flex w-full cursor-pointer items-center gap-1 rounded-md border px-2.5 py-1 text-xs font-medium transition-opacity hover:opacity-80"
+        class="inline-flex h-8 w-full cursor-pointer items-center gap-1.5 rounded-md border px-2.5 text-xs font-medium transition-opacity hover:opacity-80"
         style={pill_style(@color)}
       >
-        <span class={[@icon, "size-3 shrink-0"]} /> {@label}
+        <span class={[@icon, "size-3 shrink-0"]} />
+        {@label}
         <span class="icon-[tabler--chevron-down] ml-auto size-3 shrink-0 opacity-60" />
       </button>
       <ul
@@ -934,7 +1042,7 @@ defmodule KonevoWeb.TasksLive.DrawerComponent do
             phx-value-id={@task_id}
             phx-value-priority={val}
             phx-target={@myself}
-            class="inline-flex w-full cursor-pointer items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs font-medium transition-opacity hover:opacity-85"
+            class="inline-flex h-8 w-full cursor-pointer items-center gap-1.5 rounded-md border px-2.5 text-xs font-medium transition-opacity hover:opacity-85"
             style={pill_style_option(color, @priority == val)}
             role="menuitem"
           >
@@ -954,43 +1062,35 @@ defmodule KonevoWeb.TasksLive.DrawerComponent do
     <div
       :if={task_child_count(@task) > 0 or task_dependency_count(@task) > 0}
       id={"task-rule-summary-#{@task.id}"}
-      class="rounded-lg border border-base-content/10 bg-base-200/40 px-3 py-3"
+      class="flex min-h-8 flex-wrap items-center gap-2"
     >
-      <div class="flex flex-wrap gap-2">
-        <span
-          :if={task_child_count(@task) > 0}
-          class="inline-flex items-center gap-1.5 rounded-md border border-base-content/10 bg-base-100 px-2.5 py-1 text-xs font-medium text-base-content/65"
-        >
-          <.icon name="icon-[tabler--checklist]" class="size-3.5 text-base-content/40" /> {task_completed_child_count(
-            @task
-          )}/{task_child_count(@task)} {gettext("children done")}
-        </span>
-        <span
-          :if={task_status_derived?(@task)}
-          class="inline-flex items-center gap-1.5 rounded-md border border-primary/20 bg-primary/10 px-2.5 py-1 text-xs font-medium text-primary"
-        >
-          <.icon name="icon-[tabler--hierarchy]" class="size-3.5" /> {gettext("Status derived")}
-        </span>
-        <span
-          :if={task_blocked?(@task)}
-          class="inline-flex items-center gap-1.5 rounded-md border border-error/25 bg-error/10 px-2.5 py-1 text-xs font-medium text-error"
-        >
-          <.icon name="icon-[tabler--lock]" class="size-3.5" /> {ngettext(
-            "Blocked by 1 task",
-            "Blocked by %{count} tasks",
-            task_blocking_dependency_count(@task),
-            count: task_blocking_dependency_count(@task)
-          )}
-        </span>
-        <span
-          :if={task_dependency_count(@task) > 0 and not task_blocked?(@task)}
-          class="inline-flex items-center gap-1.5 rounded-md border border-success/20 bg-success/10 px-2.5 py-1 text-xs font-medium text-success"
-        >
-          <.icon name="icon-[tabler--circle-check]" class="size-3.5" /> {gettext(
-            "Dependencies complete"
-          )}
-        </span>
-      </div>
+      <span
+        :if={task_child_count(@task) > 0}
+        class="inline-flex h-6 items-center gap-1.5 rounded-md border border-base-content/10 bg-base-100/70 px-2 text-xs font-medium text-base-content/65"
+      >
+        <.icon name="icon-[tabler--checklist]" class="size-3.5 text-base-content/40" /> {task_completed_child_count(
+          @task
+        )}/{task_child_count(@task)} {gettext("children done")}
+      </span>
+      <span
+        :if={task_blocked?(@task)}
+        class="inline-flex h-6 items-center gap-1.5 rounded-md border border-error/25 bg-error/10 px-2 text-xs font-medium text-error"
+      >
+        <.icon name="icon-[tabler--lock]" class="size-3.5" /> {ngettext(
+          "Blocked by 1 task",
+          "Blocked by %{count} tasks",
+          task_blocking_dependency_count(@task),
+          count: task_blocking_dependency_count(@task)
+        )}
+      </span>
+      <span
+        :if={task_dependency_count(@task) > 0 and not task_blocked?(@task)}
+        class="inline-flex h-6 items-center gap-1.5 rounded-md border border-success/20 bg-success/10 px-2 text-xs font-medium text-success"
+      >
+        <.icon name="icon-[tabler--circle-check]" class="size-3.5" /> {gettext(
+          "Dependencies complete"
+        )}
+      </span>
     </div>
     """
   end

@@ -21,7 +21,9 @@ defmodule Konevo.Accounts.OrganizationsTest do
 
       assert {:ok, org} = Accounts.create_organization(%{name: "Acme", slug: slug})
 
-      assert Enum.map(Deals.list_stages(%{org: org}), & &1.name) == [
+      stages = Deals.list_stages(%{org: org})
+
+      assert Enum.map(stages, & &1.name) == [
                "Lead",
                "Qualified",
                "Proposal",
@@ -29,6 +31,8 @@ defmodule Konevo.Accounts.OrganizationsTest do
                "Closed Won",
                "Closed Lost"
              ]
+
+      assert Enum.find(stages, &(&1.name == "Lead")).color == "#2dd4bf"
     end
 
     test "requires name and slug" do

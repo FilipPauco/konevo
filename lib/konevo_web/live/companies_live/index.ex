@@ -1,7 +1,6 @@
 defmodule KonevoWeb.CompaniesLive.Index do
   use KonevoWeb, :live_view
 
-  alias Konevo.Accounts
   alias Konevo.Companies
   alias Konevo.Companies.Company
 
@@ -10,8 +9,11 @@ defmodule KonevoWeb.CompaniesLive.Index do
 
   @impl true
   def mount(_params, _session, socket) do
-    user = socket.assigns.current_scope.user
-    view_mode = parse_view_mode(user.companies_view_mode)
+    view_mode =
+      case get_connect_params(socket) do
+        %{"viewport" => "mobile"} -> :card
+        _ -> :table
+      end
 
     {:ok,
      socket
@@ -35,7 +37,9 @@ defmodule KonevoWeb.CompaniesLive.Index do
   @impl true
   def handle_params(params, _url, socket) do
     socket = apply_action(socket, socket.assigns.live_action, params)
-    {:noreply, load_companies(socket, params)}
+    socket = load_companies(socket, params)
+
+    {:noreply, assign(socket, :return_to, build_url(socket, %{}))}
   end
 
   defp load_companies(socket, params) do
@@ -149,11 +153,12 @@ defmodule KonevoWeb.CompaniesLive.Index do
      socket
      |> put_flash(:success, saved_message(action))
      |> update(:total, fn total -> if action == :created, do: total + 1, else: total end)
-     |> stream_insert(:companies, company)}
+     |> stream_insert(:companies, company)
+     |> push_patch(to: socket.assigns.return_to)}
   end
 
-  defp saved_message(:created), do: gettext("Company created successfully")
-  defp saved_message(:updated), do: gettext("Company updated successfully")
+  defp saved_message(:created), do: gettext("Company created")
+  defp saved_message(:updated), do: gettext("Company updated")
 
   @impl true
   def handle_event("search", %{"q" => q}, socket) do
@@ -242,13 +247,8 @@ defmodule KonevoWeb.CompaniesLive.Index do
 
   def handle_event("set_view_mode", %{"mode" => mode}, socket) do
     view_mode = parse_view_mode(mode)
-    user = socket.assigns.current_scope.user
-    Accounts.update_user_view_preferences(user, %{companies_view_mode: mode})
 
-    {:noreply,
-     socket
-     |> assign(:view_mode, view_mode)
-     |> push_patch(to: build_url(socket, %{}))}
+    {:noreply, assign(socket, :view_mode, view_mode)}
   end
 
   def handle_event("delete", %{"id" => id}, socket) do
@@ -257,7 +257,10 @@ defmodule KonevoWeb.CompaniesLive.Index do
     case Companies.delete_company(socket.assigns.current_scope, company) do
       {:ok, deleted} ->
         {:noreply,
-         socket |> update(:total, &max(&1 - 1, 0)) |> stream_delete(:companies, deleted)}
+         socket
+         |> update(:total, &max(&1 - 1, 0))
+         |> stream_delete(:companies, deleted)
+         |> put_flash(:success, gettext("Company deleted"))}
 
       {:error, :unauthorized} ->
         {:noreply, put_flash(socket, :error, gettext("You cannot delete this company"))}
@@ -318,6 +321,15 @@ defmodule KonevoWeb.CompaniesLive.Index do
 
     if map_size(params) == 0, do: ~p"/companies", else: ~p"/companies?#{params}"
   end
+
+  defp edit_path(company, return_to) do
+    case URI.parse(return_to).query do
+      nil -> ~p"/companies/#{company}/edit/inline"
+      query -> ~p"/companies/#{company}/edit/inline?#{URI.decode_query(query)}"
+    end
+  end
+
+  defp show_path(company, return_to), do: ~p"/companies/#{company}?#{[return_to: return_to]}"
 
   defp push_param(list, _key, default, default), do: list
   defp push_param(list, key, value, _default), do: [{key, value} | list]
@@ -384,6 +396,18 @@ defmodule KonevoWeb.CompaniesLive.Index do
           assigns.created_from != "" or assigns.created_to != "" or
           assigns.archive_filter != :active
       )
+      |> assign(
+        :filter_controls_active?,
+        assigns.industries_filter != [] or assigns.created_from != "" or
+          assigns.created_to != "" or assigns.archive_filter != :active
+      )
+      |> assign(
+        :filter_controls_count,
+        length(assigns.industries_filter) +
+          if(assigns.created_from != "", do: 1, else: 0) +
+          if(assigns.created_to != "", do: 1, else: 0) +
+          if(assigns.archive_filter != :active, do: 1, else: 0)
+      )
 
     ~H"""
     <Layouts.app flash={@flash} current_scope={@current_scope} current_path={@current_path}>
@@ -401,7 +425,7 @@ defmodule KonevoWeb.CompaniesLive.Index do
         <%!-- Toolbar --%>
         <div class="mb-4 flex flex-wrap items-center gap-2">
           <%!-- Search --%>
-          <div class="relative w-52 shrink-0">
+          <div class="relative w-full shrink-0 sm:w-52">
             <span class="icon-[tabler--search] pointer-events-none absolute left-2.5 top-1/2 z-10 size-3.5 -translate-y-1/2 text-base-content/40" />
             <form phx-change="search" phx-submit="search" id="company-search-form">
               <input
@@ -428,14 +452,76 @@ defmodule KonevoWeb.CompaniesLive.Index do
             </button>
           </div>
 
-          <.archive_filter_dropdown
-            id="companies-archive-filter"
-            selected={@archive_filter}
-            options={archive_filter_options()}
-          />
+          <div class="hidden sm:block">
+            <.archive_filter_dropdown
+              id="companies-archive-filter"
+              selected={@archive_filter}
+              options={archive_filter_options()}
+            />
+          </div>
+
+          <div class="flex items-center gap-2 sm:hidden">
+            <button
+              type="button"
+              class={[
+                "btn btn-sm gap-1.5 border select-none",
+                if(@filter_controls_active?,
+                  do: "border-primary/50 bg-primary/10 text-primary hover:bg-primary/15",
+                  else:
+                    "border-base-content/20 bg-base-100 text-base-content hover:border-base-content/30"
+                )
+              ]}
+              phx-click={
+                JS.toggle(
+                  to: "#companies-filter-panel",
+                  display: "flex",
+                  in:
+                    {"transition ease-out duration-200", "opacity-0 -translate-y-1",
+                     "opacity-100 translate-y-0"},
+                  out:
+                    {"transition ease-in duration-150", "opacity-100 translate-y-0",
+                     "opacity-0 -translate-y-1"}
+                )
+                |> JS.toggle_class("rotate-180", to: "#companies-filter-chevron")
+              }
+            >
+              <span class="icon-[tabler--adjustments-horizontal] size-3.5" />
+              {gettext("Filters")}
+              <span
+                :if={@filter_controls_active?}
+                class="flex size-4 items-center justify-center rounded-full bg-primary text-[10px] font-bold text-primary-content"
+              >
+                {@filter_controls_count}
+              </span>
+              <span
+                id="companies-filter-chevron"
+                class="icon-[tabler--chevron-down] size-3.5 opacity-50 transition-transform duration-200"
+              />
+            </button>
+            <button
+              :if={@filter_controls_active?}
+              id="companies-clear-filters-mobile"
+              phx-click="clear_filters"
+              type="button"
+              aria-label={gettext("Clear filters")}
+              class="btn btn-sm btn-square border border-base-content/20 bg-base-100 text-base-content/60 transition-all hover:border-base-content/30 hover:text-base-content"
+            >
+              <.icon name="icon-[tabler--x]" class="size-3.5" />
+            </button>
+          </div>
 
           <%!-- Filter dropdowns --%>
-          <div class="flex flex-wrap items-center gap-2">
+          <div
+            id="companies-filter-panel"
+            class="hidden w-full flex-wrap items-center gap-2 rounded-xl border border-secondary/35 bg-secondary/10 p-3 sm:w-auto sm:rounded-none sm:border-0 sm:bg-transparent sm:p-0 sm:flex"
+          >
+            <div class="sm:hidden">
+              <.archive_filter_dropdown
+                id="companies-archive-filter-mobile"
+                selected={@archive_filter}
+                options={archive_filter_options()}
+              />
+            </div>
             <%!-- Industry filter --%>
             <div
               :if={@all_industries != []}
@@ -492,55 +578,57 @@ defmodule KonevoWeb.CompaniesLive.Index do
               created_from={@created_from}
               created_to={@created_to}
             />
-
-            <%!-- Clear all filters --%>
-            <button
-              :if={@filters_active?}
-              phx-click="clear_filters"
-              type="button"
-              class="btn btn-sm gap-1.5 border border-base-content/20 bg-base-100 text-base-content/60 transition-all hover:border-base-content/30 hover:text-base-content"
-            >
-              <span class="icon-[tabler--x] size-3" />
-              {gettext("Clear filters")}
-            </button>
+            <div :if={@filters_active?} class="hidden border-l border-base-content/15 pl-2 sm:block">
+              <button
+                id="companies-clear-filters"
+                phx-click="clear_filters"
+                type="button"
+                class="btn btn-sm gap-1.5 border border-base-content/20 bg-base-100 text-base-content/60 transition-all hover:border-base-content/30 hover:text-base-content"
+              >
+                <.icon name="icon-[tabler--x]" class="size-3" />
+                {gettext("Clear filters")}
+              </button>
+            </div>
           </div>
 
           <%!-- View mode toggle --%>
-          <div class="ml-auto flex items-center gap-1 rounded-lg border border-base-content/15 bg-base-100 p-0.5 shadow-sm">
-            <button
-              id="companies-view-table"
-              type="button"
-              phx-click="set_view_mode"
-              phx-value-mode="table"
-              title={gettext("Table view")}
-              class={[
-                "flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium transition-all",
-                if(@view_mode == :table,
-                  do: "bg-neutral text-neutral-content shadow-sm",
-                  else: "text-base-content/50 hover:text-base-content"
-                )
-              ]}
-            >
-              <span class="icon-[tabler--table] size-3.5" />
-              {gettext("Table")}
-            </button>
-            <button
-              id="companies-view-cards"
-              type="button"
-              phx-click="set_view_mode"
-              phx-value-mode="card"
-              title={gettext("Card view")}
-              class={[
-                "flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium transition-all",
-                if(@view_mode == :card,
-                  do: "bg-neutral text-neutral-content shadow-sm",
-                  else: "text-base-content/50 hover:text-base-content"
-                )
-              ]}
-            >
-              <span class="icon-[tabler--layout-grid] size-3.5" />
-              {gettext("Cards")}
-            </button>
+          <div id="companies-toolbar-actions" class="ml-auto flex shrink-0 items-center gap-2">
+            <div class="flex items-center gap-1 rounded-lg border border-base-content/15 bg-base-100 p-0.5 shadow-sm">
+              <button
+                id="companies-view-table"
+                type="button"
+                phx-click="set_view_mode"
+                phx-value-mode="table"
+                title={gettext("Table view")}
+                class={[
+                  "flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium transition-all",
+                  if(@view_mode == :table,
+                    do: "bg-neutral text-neutral-content shadow-sm",
+                    else: "text-base-content/50 hover:text-base-content"
+                  )
+                ]}
+              >
+                <span class="icon-[tabler--table] size-3.5" />
+                <span class="hidden sm:inline">{gettext("Table")}</span>
+              </button>
+              <button
+                id="companies-view-cards"
+                type="button"
+                phx-click="set_view_mode"
+                phx-value-mode="card"
+                title={gettext("Card view")}
+                class={[
+                  "flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium transition-all",
+                  if(@view_mode == :card,
+                    do: "bg-neutral text-neutral-content shadow-sm",
+                    else: "text-base-content/50 hover:text-base-content"
+                  )
+                ]}
+              >
+                <span class="icon-[tabler--layout-grid] size-3.5" />
+                <span class="hidden sm:inline">{gettext("Cards")}</span>
+              </button>
+            </div>
           </div>
         </div>
 
@@ -632,7 +720,7 @@ defmodule KonevoWeb.CompaniesLive.Index do
             <div
               :if={@total == 0 and !@companies.loading}
               id="companies-cards-empty"
-              class="flex flex-col items-center py-20 text-center"
+              class="flex flex-col items-center rounded-xl border border-base-content/20 bg-base-100 py-20 text-center"
             >
               <span class="icon-[tabler--building-off] mb-4 size-12 text-base-content/20" />
               <p class="text-sm font-medium text-base-content/50">
@@ -663,7 +751,7 @@ defmodule KonevoWeb.CompaniesLive.Index do
                 <div class="flex flex-1 flex-col gap-4 p-5">
                   <div class="flex items-start gap-3">
                     <.link
-                      navigate={~p"/companies/#{company}"}
+                      navigate={show_path(company, @return_to)}
                       class="flex size-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary/20 to-primary/10 text-lg font-bold uppercase text-primary shadow-inner"
                     >
                       {company_initials(company.name)}
@@ -671,7 +759,7 @@ defmodule KonevoWeb.CompaniesLive.Index do
                     <div class="min-w-0 flex-1 pt-0.5">
                       <div class="flex min-w-0 items-center gap-1.5">
                         <.link
-                          navigate={~p"/companies/#{company}"}
+                          navigate={show_path(company, @return_to)}
                           class="min-w-0 flex-1 truncate text-sm font-semibold text-base-content decoration-primary/50 underline-offset-2 transition-colors group-hover:text-primary group-hover:underline"
                         >
                           {company.name}
@@ -708,7 +796,7 @@ defmodule KonevoWeb.CompaniesLive.Index do
                           >
                             <li>
                               <.link
-                                patch={~p"/companies/#{company}/edit/inline"}
+                                patch={edit_path(company, @return_to)}
                                 class="flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm font-medium text-base-content/70 transition-colors hover:bg-primary/10 hover:text-primary"
                               >
                                 <.icon name="icon-[tabler--pencil]" class="size-3.5" />
@@ -729,7 +817,7 @@ defmodule KonevoWeb.CompaniesLive.Index do
                                 <.link
                                   phx-click="restore"
                                   phx-value-id={company.id}
-                                  class="flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm font-medium text-base-content/70 transition-colors hover:bg-success/10 hover:text-success"
+                                  class="flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm font-medium text-base-content/70 transition-colors hover:bg-warning/10 hover:text-warning"
                                 >
                                   <.icon name="icon-[tabler--archive-off]" class="size-3.5" />
                                   {gettext("Restore")}
@@ -833,7 +921,7 @@ defmodule KonevoWeb.CompaniesLive.Index do
                         </span>
                         <div class="min-w-0 flex-1">
                           <.link
-                            navigate={~p"/companies/#{company}"}
+                            navigate={show_path(company, @return_to)}
                             data-full-name={company.name}
                             class="block truncate text-sm font-medium decoration-primary/60 underline-offset-2 transition-colors hover:text-primary hover:underline"
                           >
@@ -861,7 +949,7 @@ defmodule KonevoWeb.CompaniesLive.Index do
                         >
                           <li>
                             <.link
-                              patch={~p"/companies/#{company}/edit/inline"}
+                              patch={edit_path(company, @return_to)}
                               class="flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm font-medium text-base-content/70 transition-colors hover:bg-primary/10 hover:text-primary"
                             >
                               <.icon name="icon-[tabler--pencil]" class="size-3.5" />
@@ -882,7 +970,7 @@ defmodule KonevoWeb.CompaniesLive.Index do
                               <.link
                                 phx-click="restore"
                                 phx-value-id={company.id}
-                                class="flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm font-medium text-base-content/70 transition-colors hover:bg-success/10 hover:text-success"
+                                class="flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm font-medium text-base-content/70 transition-colors hover:bg-warning/10 hover:text-warning"
                               >
                                 <.icon name="icon-[tabler--archive-off]" class="size-3.5" />
                                 {gettext("Restore")}
@@ -955,7 +1043,7 @@ defmodule KonevoWeb.CompaniesLive.Index do
 
         <%!-- Footer: count + pagination --%>
         <div
-          :if={@companies.ok? and !@companies.loading}
+          :if={@companies.ok? and !@companies.loading and @total > 0}
           id="companies-footer"
           class="mt-6 flex flex-wrap items-center justify-between gap-3"
         >
@@ -1027,7 +1115,7 @@ defmodule KonevoWeb.CompaniesLive.Index do
         :if={@live_action in [:new, :edit]}
         id="company-modal"
         show
-        on_cancel={hide_modal("company-modal") |> JS.patch(~p"/companies")}
+        on_cancel={hide_modal("company-modal") |> JS.patch(@return_to)}
       >
         <.live_component
           module={KonevoWeb.CompaniesLive.FormComponent}
@@ -1036,7 +1124,7 @@ defmodule KonevoWeb.CompaniesLive.Index do
           action={@live_action}
           company={@company}
           current_scope={@current_scope}
-          patch={~p"/companies"}
+          patch={@return_to}
         />
       </.modal>
     </Layouts.app>

@@ -69,8 +69,8 @@ defmodule KonevoWeb.GlobalSearchComponent do
         phx-target={@myself}
         class="[&_.fieldset]:mb-0 [&_.fieldset]:min-w-0 [&_.fieldset]:flex-1 [&_label]:block"
       >
-        <div class="input input-lg flex h-10 w-full max-w-none items-center gap-3 !border-base-content/15 bg-base-100 px-3 text-base-content !shadow-sm transition-colors focus-within:!border-base-content/15 focus-within:!bg-base-100 focus-within:!shadow-sm focus-within:!outline-none focus-within:!ring-0">
-          <.icon name="icon-[tabler--search]" class="size-5 shrink-0 text-base-content/55" />
+        <div class="input flex h-9 w-full max-w-none items-center gap-2 px-2.5 text-base-content !border-base-content/15 bg-base-100 !shadow-sm transition-colors focus-within:!border-base-content/15 focus-within:!bg-base-100 focus-within:!shadow-sm focus-within:!outline-none focus-within:!ring-0 sm:h-10 sm:gap-3 sm:px-3">
+          <.icon name="icon-[tabler--search]" class="size-4 shrink-0 text-base-content/55 sm:size-5" />
           <.input
             field={@form[:q]}
             id="global-search-input"
@@ -81,7 +81,7 @@ defmodule KonevoWeb.GlobalSearchComponent do
             phx-debounce="200"
             phx-focus="focus"
             phx-target={@myself}
-            class="h-10 min-w-0 grow border-0 bg-transparent px-0 text-sm outline-none placeholder:text-base-content/45 focus:outline-none"
+            class="h-9 min-w-0 grow border-0 bg-transparent px-0 text-[13px] outline-none placeholder:text-base-content/45 focus:outline-none sm:h-10 sm:text-sm"
           />
           <span class="my-auto hidden shrink-0 gap-1.5 sm:flex">
             <kbd class="kbd kbd-sm bg-base-200 text-base-content/65">{gettext("Ctrl")}</kbd>

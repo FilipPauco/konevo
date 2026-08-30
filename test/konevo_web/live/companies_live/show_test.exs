@@ -39,6 +39,22 @@ defmodule KonevoWeb.CompaniesLive.ShowTest do
     assert has_element?(view, "#company-contacts a[href='/contacts/#{contact.slug}']")
   end
 
+  test "returns to the filtered company list", %{conn: conn, scope: scope} do
+    company = company_fixture(scope, %{name: "Acme"})
+
+    {:ok, view, _html} =
+      live(conn, ~p"/companies/#{company}?#{[return_to: "/companies?search=acme"]}")
+
+    assert has_element?(view, "#company-back-link a[href='/companies?search=acme']")
+  end
+
+  test "uses the company list for an invalid return path", %{conn: conn, scope: scope} do
+    company = company_fixture(scope)
+    {:ok, view, _html} = live(conn, ~p"/companies/#{company}?return_to=https://example.com")
+
+    assert has_element?(view, "#company-back-link a[href='/companies']")
+  end
+
   test "renders linked task timeline", %{conn: conn, scope: scope} do
     company = company_fixture(scope)
     task = task_fixture(scope, %{title: "Company follow up", company: company})
@@ -99,6 +115,25 @@ defmodule KonevoWeb.CompaniesLive.ShowTest do
     refute has_element?(view, "#company-contact-modal")
   end
 
+  test "keeps the preselected company label when validating a new contact", %{
+    conn: conn,
+    scope: scope
+  } do
+    company = company_fixture(scope, %{name: "Acme"})
+    {:ok, view, _html} = live(conn, ~p"/companies/#{company}")
+
+    view |> element("#company-add-contact") |> render_click()
+
+    view
+    |> form("#contact-form", contact: %{first_name: "Jane", company_id: company.id})
+    |> render_change()
+
+    assert has_element?(
+             view,
+             "#contact_company_id_live_select_component input[type='text'][value='Acme']"
+           )
+  end
+
   test "creates a task from company detail without navigating to tasks", %{
     conn: conn,
     scope: scope
@@ -152,6 +187,21 @@ defmodule KonevoWeb.CompaniesLive.ShowTest do
     |> render_submit(%{"company" => %{"notes" => "Important account"}})
 
     assert render(view) =~ "Important account"
+  end
+
+  test "renaming a company patches to the new slug", %{conn: conn, scope: scope} do
+    company = company_fixture(scope, %{name: "Old Company"})
+    {:ok, view, _html} = live(conn, ~p"/companies/#{company}/edit")
+
+    view
+    |> form("#company-form", company: %{name: "Renamed Company"})
+    |> render_submit()
+
+    updated = Companies.get_company!(scope, company.id)
+
+    assert updated.slug == "renamed-company"
+    assert_patch(view, ~p"/companies/#{updated}")
+    assert render(view) =~ "Renamed Company"
   end
 
   test "deletes and redirects", %{conn: conn, scope: scope} do

@@ -334,6 +334,10 @@ defmodule KonevoWeb.InboxLive.Index do
     end
   end
 
+  def handle_event("clear_selected", _, socket) do
+    {:noreply, clear_selected_threads(socket)}
+  end
+
   def handle_event("select_all", _, socket) do
     {:noreply, select_thread_group(socket, :all)}
   end
@@ -400,11 +404,15 @@ defmodule KonevoWeb.InboxLive.Index do
     {:noreply, push_patch(socket, to: build_url(socket, %{search: "", page: 1}), replace: true)}
   end
 
-  def handle_event("filter_category", %{"category" => cat}, socket) do
+  def handle_event("filter_category", %{"category" => cat} = params, socket) do
+    category = parse_category(cat)
+
     new_cat =
-      if socket.assigns.filter_category == parse_category(cat),
-        do: nil,
-        else: parse_category(cat)
+      if params["select"] == "true" do
+        category
+      else
+        if socket.assigns.filter_category == category, do: nil, else: category
+      end
 
     {:noreply, push_patch(socket, to: build_url(socket, %{filter_category: new_cat, page: 1}))}
   end
@@ -1006,6 +1014,24 @@ defmodule KonevoWeb.InboxLive.Index do
   defp category_count(stats, :uncategorised, _total), do: Map.get(stats, nil, 0)
   defp category_count(stats, category, _total), do: Map.get(stats, category, 0)
 
+  defp category_filter_options do
+    [
+      {gettext("All"), nil, "all", "icon-[tabler--inbox]"},
+      {gettext("Leads"), :lead, "lead", "icon-[tabler--user-dollar]"},
+      {gettext("Customers"), :customer, "customer", "icon-[tabler--users]"},
+      {gettext("Support"), :support, "support", "icon-[tabler--headset]"},
+      {gettext("Billing"), :billing, "billing", "icon-[tabler--receipt]"},
+      {gettext("Internal"), :internal, "internal", "icon-[tabler--building]"},
+      {gettext("Uncategorised"), :uncategorised, "uncategorised", "icon-[tabler--tag-off]"}
+    ]
+  end
+
+  defp category_filter_option(category) do
+    Enum.find(category_filter_options(), fn {_label, option_category, _id, _icon} ->
+      option_category == category
+    end) || List.first(category_filter_options())
+  end
+
   attr(:tip, :string, required: true)
   slot(:inner_block, required: true)
 
@@ -1128,34 +1154,16 @@ defmodule KonevoWeb.InboxLive.Index do
     |> Phoenix.Naming.humanize()
   end
 
-  defp category_badge_class(:lead), do: "bg-orange-500/15 text-orange-500 border-orange-500/20"
-  defp category_badge_class(:customer), do: "bg-success/15 text-success border-success/20"
-  defp category_badge_class(:support), do: "bg-info/15 text-info border-info/20"
-  defp category_badge_class(:billing), do: "bg-error/15 text-error border-error/20"
-
-  defp category_badge_class(:internal),
-    do: "bg-base-content/8 text-base-content/50 border-base-content/10"
-
-  defp category_badge_class(:noise),
-    do: "bg-base-content/8 text-base-content/40 border-base-content/10"
-
-  defp category_badge_class(:uncategorised),
-    do: "bg-base-content/8 text-base-content/40 border-base-content/10"
-
-  defp category_badge_class(nil),
-    do: "bg-base-content/8 text-base-content/40 border-base-content/10"
-
   attr(:thread, :map, required: true)
   attr(:compact, :boolean, default: false)
 
   defp category_picker(assigns) do
     category = category_for_ui(assigns.thread.category)
-    {color, icon, label} = category_meta(category)
+    {icon, label} = category_meta(category)
 
     assigns =
       assign(assigns,
         category: category,
-        color: color,
         icon: icon,
         label: label,
         options: category_options()
@@ -1172,12 +1180,14 @@ defmodule KonevoWeb.InboxLive.Index do
         data-toggle
         aria-label={gettext("Change category")}
         class={[
-          "inline-flex cursor-pointer items-center gap-1 rounded-md border px-2.5 py-1 text-xs font-medium transition-opacity hover:opacity-80",
-          @compact && "max-w-full"
+          "inline-flex cursor-pointer items-center gap-1 border border-base-content/15 bg-base-100 font-medium text-base-content/65 transition-colors hover:border-primary/30 hover:bg-base-200 hover:text-base-content",
+          if(@compact,
+            do: "max-w-full rounded-full px-2 py-0.5 text-[11px]",
+            else: "rounded-md px-2.5 py-1 text-xs"
+          )
         ]}
-        style={pill_style(@color)}
       >
-        <.icon name={@icon} class="size-3.5 shrink-0" />
+        <.icon name={@icon} class="size-3.5 shrink-0 text-base-content/50" />
         <span class="truncate">{@label}</span>
         <.icon name="icon-[tabler--chevron-down]" class="size-3 shrink-0 opacity-60" />
       </button>
@@ -1186,17 +1196,22 @@ defmodule KonevoWeb.InboxLive.Index do
         class="row-menu-closed z-50 w-44 space-y-0.5 overflow-hidden rounded-lg border border-base-content/10 bg-base-100 p-1 shadow-xl shadow-base-content/10"
         role="menu"
       >
-        <li :for={{value, color, icon, label} <- @options}>
+        <li :for={{value, icon, label} <- @options}>
           <button
             type="button"
             phx-click="categorize"
             phx-value-id={@thread.id}
             phx-value-category={value}
-            class="inline-flex w-full cursor-pointer items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs font-medium transition-opacity hover:opacity-85"
-            style={pill_style_option(color, @category == value)}
+            class={[
+              "inline-flex w-full cursor-pointer items-center gap-1.5 rounded-md px-2.5 py-2 text-xs font-medium transition-colors",
+              if(@category == value,
+                do: "bg-primary/10 text-primary",
+                else: "text-base-content/70 hover:bg-base-200 hover:text-base-content"
+              )
+            ]}
             role="menuitem"
           >
-            <.icon name={icon} class="size-3.5 shrink-0" />
+            <.icon name={icon} class="size-3.5 shrink-0 text-base-content/50" />
             <span>{label}</span>
             <.icon
               :if={@category == value}
@@ -1217,43 +1232,22 @@ defmodule KonevoWeb.InboxLive.Index do
 
   defp category_options do
     [
-      {:lead, "#f97316", "icon-[tabler--user-dollar]", gettext("Lead")},
-      {:customer, "#22c55e", "icon-[tabler--users]", gettext("Customer")},
-      {:support, "#0ea5e9", "icon-[tabler--headset]", gettext("Support")},
-      {:billing, "#ef4444", "icon-[tabler--receipt]", gettext("Billing")},
-      {:internal, "#64748b", "icon-[tabler--building]", gettext("Internal")},
-      {:uncategorised, "#94a3b8", "icon-[tabler--tag-off]", gettext("Uncategorised")}
+      {:lead, "icon-[tabler--user-dollar]", gettext("Lead")},
+      {:customer, "icon-[tabler--users]", gettext("Customer")},
+      {:support, "icon-[tabler--headset]", gettext("Support")},
+      {:billing, "icon-[tabler--receipt]", gettext("Billing")},
+      {:internal, "icon-[tabler--building]", gettext("Internal")},
+      {:uncategorised, "icon-[tabler--tag-off]", gettext("Uncategorised")}
     ]
   end
 
   defp category_meta(category) do
-    case Enum.find(category_options(), fn {value, _, _, _} ->
+    case Enum.find(category_options(), fn {value, _, _} ->
            value == category_for_ui(category)
          end) do
-      {_, color, icon, label} -> {color, icon, label}
-      nil -> {"#94a3b8", "icon-[tabler--tag-off]", gettext("Uncategorised")}
+      {_, icon, label} -> {icon, label}
+      nil -> {"icon-[tabler--tag-off]", gettext("Uncategorised")}
     end
-  end
-
-  defp pill_style(color) do
-    [
-      "background-color: color-mix(in srgb, #{color} 14%, transparent)",
-      "border-color: color-mix(in srgb, #{color} 35%, transparent)",
-      "color: #{color}"
-    ]
-    |> Enum.join("; ")
-  end
-
-  defp pill_style_option(color, active) do
-    bg_pct = if active, do: "22%", else: "14%"
-    border_pct = if active, do: "50%", else: "35%"
-
-    [
-      "background-color: color-mix(in srgb, #{color} #{bg_pct}, transparent)",
-      "border-color: color-mix(in srgb, #{color} #{border_pct}, transparent)",
-      "color: #{color}"
-    ]
-    |> Enum.join("; ")
   end
 
   defp unread?(thread), do: is_nil(thread.read_at)
@@ -1686,6 +1680,7 @@ defmodule KonevoWeb.InboxLive.Index do
       |> assign(:all_categories, @categories)
       |> assign(:all_views, @views)
       |> assign(:per_page, @per_page)
+      |> assign(:selected_thread_count, MapSet.size(assigns.selected_thread_ids))
       |> assign(
         :has_active_filters,
         assigns.filter_category != nil or assigns.filter_unresolved != nil
@@ -1700,6 +1695,7 @@ defmodule KonevoWeb.InboxLive.Index do
           <div class="sticky top-4 hidden max-h-[calc(100vh-6rem)] w-52 shrink-0 flex-col overflow-y-auto rounded-xl border border-neutral/30 bg-base-100 py-3 sm:flex">
             <%!-- Compose button --%>
             <button
+              id="inbox-desktop-compose"
               type="button"
               phx-click="open_compose"
               class="mx-2 mb-4 flex items-center justify-center gap-1.5 rounded-lg border border-primary/30 bg-primary/8 px-3 py-2 text-sm font-semibold text-primary shadow-sm transition-all hover:bg-primary/15 hover:shadow-md"
@@ -1724,7 +1720,7 @@ defmodule KonevoWeb.InboxLive.Index do
                   "mx-2 flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
                   if(@inbox_view == view,
                     do: "bg-primary/10 text-primary",
-                    else: "text-base-content/60 hover:bg-base-200 hover:text-base-content"
+                    else: "text-base-content/80 hover:bg-base-200 hover:text-base-content"
                   )
                 ]}
               >
@@ -1748,38 +1744,53 @@ defmodule KonevoWeb.InboxLive.Index do
 
           <%!-- Right: toolbar + tabs + list --%>
           <div class="min-w-0 flex-1 flex flex-col rounded-xl border border-neutral/30 bg-base-100">
-            <%!-- Mobile view switcher (horizontal scroll) --%>
-            <div class="sm:hidden flex overflow-x-auto border-b border-base-content/10 px-3 py-2 gap-1 scrollbar-none">
-              <%= for {label, view, icon} <- [
-                {gettext("Inbox"), :inbox, "icon-[tabler--inbox]"},
-                {gettext("Favorites"), :favorites, "icon-[tabler--star]"},
-                {gettext("Sent"), :sent, "icon-[tabler--send]"},
-                {gettext("Scheduled"), :scheduled, "icon-[tabler--clock]"},
-                {gettext("Archived"), :archived, "icon-[tabler--archive]"},
-                {gettext("Bin"), :bin, "icon-[tabler--trash]"}
-              ] do %>
-                <button
-                  type="button"
-                  phx-click="switch_view"
-                  phx-value-view={view}
-                  class={[
-                    "flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition-colors",
-                    if(@inbox_view == view,
-                      do: "bg-primary text-primary-content",
-                      else: "bg-base-200 text-base-content/60 hover:text-base-content"
-                    )
-                  ]}
-                >
-                  <span class={[icon, "size-3.5"]} />
-                  {label}
-                </button>
-              <% end %>
+            <%!-- Mobile compose action + view switcher --%>
+            <div class="flex items-center gap-2 border-b border-base-content/10 px-3 py-2.5 sm:hidden">
+              <button
+                id="inbox-mobile-compose"
+                type="button"
+                phx-click="open_compose"
+                class="btn btn-primary btn-sm btn-square h-8 w-8 shrink-0 rounded-md p-0 shadow-sm"
+                aria-label={gettext("Compose")}
+                title={gettext("Compose")}
+              >
+                <span class="icon-[tabler--pencil] size-3.5" />
+              </button>
+              <div aria-hidden="true" class="h-6 w-px shrink-0 bg-base-content/10" />
+              <div class="flex min-w-0 flex-1 gap-1 overflow-x-auto scrollbar-none">
+                <%= for {label, view, icon} <- [
+                  {gettext("Inbox"), :inbox, "icon-[tabler--inbox]"},
+                  {gettext("Favorites"), :favorites, "icon-[tabler--star]"},
+                  {gettext("Sent"), :sent, "icon-[tabler--send]"},
+                  {gettext("Scheduled"), :scheduled, "icon-[tabler--clock]"},
+                  {gettext("Archived"), :archived, "icon-[tabler--archive]"},
+                  {gettext("Bin"), :bin, "icon-[tabler--trash]"}
+                ] do %>
+                  <button
+                    type="button"
+                    phx-click="switch_view"
+                    phx-value-view={view}
+                    aria-pressed={@inbox_view == view}
+                    class={[
+                      "flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1.5 text-xs font-medium transition-colors",
+                      if(@inbox_view == view,
+                        do: "border-primary/25 bg-primary/10 text-primary shadow-sm",
+                        else:
+                          "border-transparent bg-base-200/70 text-base-content/60 hover:border-base-content/10 hover:bg-base-200 hover:text-base-content"
+                      )
+                    ]}
+                  >
+                    <span class={[icon, "size-3.5"]} />
+                    {label}
+                  </button>
+                <% end %>
+              </div>
             </div>
 
             <%!-- Toolbar --%>
-            <div class="flex flex-wrap items-center gap-2 px-3 py-3">
+            <div class="flex flex-wrap items-center gap-2 px-3 py-2.5 sm:py-3">
               <%!-- Search --%>
-              <div class="relative w-full shrink-0 sm:w-64">
+              <div class="relative order-1 min-w-0 flex-1 sm:order-none sm:w-64 sm:flex-none">
                 <span class="icon-[tabler--search] pointer-events-none absolute left-2.5 top-1/2 z-10 size-3.5 -translate-y-1/2 text-base-content/40" />
                 <form phx-change="search" phx-submit="search" id="inbox-search-form">
                   <input
@@ -1806,6 +1817,68 @@ defmodule KonevoWeb.InboxLive.Index do
                 </button>
               </div>
 
+              <%!-- Mobile category selector --%>
+              <div
+                :if={@inbox_view != :scheduled}
+                id="inbox-mobile-category-filter"
+                class="relative order-3 w-full sm:hidden"
+                phx-hook="FilterPanel"
+              >
+                <button
+                  type="button"
+                  data-toggle
+                  class="btn btn-sm min-w-36 justify-between border border-base-content/20 bg-base-100 px-3 text-base-content transition-colors hover:border-base-content/30"
+                >
+                  <span class="flex min-w-0 items-center gap-2">
+                    <.icon
+                      name={elem(category_filter_option(@filter_category), 3)}
+                      class="size-3.5 shrink-0 text-primary"
+                    />
+                    <span class="truncate text-sm font-semibold">
+                      {elem(category_filter_option(@filter_category), 0)}
+                    </span>
+                  </span>
+                  <span class="flex items-center gap-2 text-base-content/50">
+                    <span class="flex size-5 shrink-0 items-center justify-center rounded-full bg-base-content/8 text-[10px] font-bold leading-none tabular-nums">
+                      {category_count(@stats, @filter_category, @total)}
+                    </span>
+                    <.icon name="icon-[tabler--chevron-down]" class="size-3.5" />
+                  </span>
+                </button>
+
+                <div
+                  data-panel
+                  class="row-menu-closed z-30 w-[calc(100vw-2rem)] max-w-sm overflow-hidden rounded-xl border border-base-content/20 bg-base-100 p-1 shadow-xl"
+                >
+                  <button
+                    :for={{label, category, id, icon} <- category_filter_options()}
+                    type="button"
+                    phx-click="filter_category"
+                    phx-value-category={id}
+                    phx-value-select="true"
+                    data-close-panel
+                    class={[
+                      "flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors",
+                      if(@filter_category == category,
+                        do: "bg-primary/10 text-primary",
+                        else: "text-base-content/70 hover:bg-base-200 hover:text-base-content"
+                      )
+                    ]}
+                  >
+                    <.icon name={icon} class="size-3.5 shrink-0" />
+                    <span class="min-w-0 flex-1 text-left">{label}</span>
+                    <span class="flex size-5 shrink-0 items-center justify-center rounded-full bg-base-content/8 text-[10px] font-bold leading-none tabular-nums">
+                      {category_count(@stats, category, @total)}
+                    </span>
+                    <.icon
+                      :if={@filter_category == category}
+                      name="icon-[tabler--check]"
+                      class="size-3.5 shrink-0"
+                    />
+                  </button>
+                </div>
+              </div>
+
               <button
                 type="button"
                 id="inbox-refresh"
@@ -1814,7 +1887,7 @@ defmodule KonevoWeb.InboxLive.Index do
                 aria-label={gettext("Check mail now")}
                 title={gettext("Check mail now")}
                 class={[
-                  "btn btn-sm btn-square rounded-md border border-primary/25 bg-primary/10 text-primary shadow-sm transition-all hover:border-primary/40 hover:bg-primary/15 disabled:cursor-wait disabled:border-primary/20 disabled:bg-primary/10 disabled:text-primary",
+                  "order-2 btn btn-sm btn-square rounded-md border border-primary/25 bg-primary/10 text-primary shadow-sm transition-all hover:border-primary/40 hover:bg-primary/15 disabled:cursor-wait disabled:border-primary/20 disabled:bg-primary/10 disabled:text-primary sm:order-none",
                   @gmail_syncing? && "shadow-primary/10"
                 ]}
               >
@@ -1825,7 +1898,7 @@ defmodule KonevoWeb.InboxLive.Index do
               </button>
 
               <%!-- Actions --%>
-              <div class="relative z-20 ml-auto flex max-w-full items-center gap-1 overflow-visible">
+              <div class="relative z-20 hidden max-w-full items-center gap-1 overflow-visible sm:ml-auto sm:flex">
                 <.action_popover tip={gettext("Select all visible threads")}>
                   <label class="flex size-7 cursor-pointer items-center justify-center">
                     <input
@@ -1903,25 +1976,79 @@ defmodule KonevoWeb.InboxLive.Index do
                   </button>
                 </.action_popover>
               </div>
+
+              <div
+                :if={@selected_thread_count > 0}
+                id="inbox-mobile-selection-actions"
+                class="order-4 flex w-full items-center gap-1.5 rounded-lg border border-primary/20 bg-primary/5 px-2 py-1.5 sm:hidden"
+              >
+                <button
+                  type="button"
+                  phx-click="clear_selected"
+                  class="flex items-center gap-1 rounded-md px-1.5 py-1 text-xs font-semibold text-primary transition-colors hover:bg-primary/10"
+                >
+                  <.icon name="icon-[tabler--x]" class="size-3.5" />
+                  {gettext("%{count} selected", count: @selected_thread_count)}
+                </button>
+                <div class="ml-auto flex items-center gap-0.5">
+                  <button
+                    type="button"
+                    phx-click="bulk_action"
+                    phx-value-action="restore"
+                    aria-label={gettext("Restore selected threads to Inbox")}
+                    class="flex size-8 items-center justify-center rounded-md text-base-content/55 transition-colors hover:bg-base-100 hover:text-base-content"
+                  >
+                    <.icon name="icon-[tabler--inbox]" class="size-4" />
+                  </button>
+                  <button
+                    type="button"
+                    phx-click="bulk_action"
+                    phx-value-action="favorite"
+                    aria-label={gettext("Toggle favorite for selected threads")}
+                    class="flex size-8 items-center justify-center rounded-md text-base-content/55 transition-colors hover:bg-base-100 hover:text-warning"
+                  >
+                    <.icon name="icon-[tabler--star]" class="size-4" />
+                  </button>
+                  <button
+                    type="button"
+                    phx-click="bulk_action"
+                    phx-value-action="mark_read"
+                    aria-label={gettext("Mark selected threads as read")}
+                    class="flex size-8 items-center justify-center rounded-md text-base-content/55 transition-colors hover:bg-base-100 hover:text-base-content"
+                  >
+                    <.icon name="icon-[tabler--mail]" class="size-4" />
+                  </button>
+                  <button
+                    type="button"
+                    phx-click="bulk_action"
+                    phx-value-action="archive"
+                    aria-label={gettext("Archive selected threads")}
+                    class="flex size-8 items-center justify-center rounded-md text-base-content/55 transition-colors hover:bg-base-100 hover:text-base-content"
+                  >
+                    <.icon name="icon-[tabler--archive]" class="size-4" />
+                  </button>
+                  <button
+                    type="button"
+                    phx-click="bulk_action"
+                    phx-value-action="move_to_bin"
+                    aria-label={gettext("Move selected threads to Bin")}
+                    class="flex size-8 items-center justify-center rounded-md text-base-content/55 transition-colors hover:bg-base-100 hover:text-error"
+                  >
+                    <.icon name="icon-[tabler--trash]" class="size-4" />
+                  </button>
+                </div>
+              </div>
             </div>
 
-            <%!-- Tabs (underline style) --%>
+            <%!-- Desktop category tabs --%>
             <nav
               :if={@inbox_view != :scheduled}
               id="inbox-category-tabs"
               role="tablist"
-              class="flex min-h-12 overflow-x-auto border-b border-base-content/10 px-1"
+              class="hidden min-h-12 overflow-x-auto border-b border-base-content/10 px-1 sm:flex"
               aria-label={gettext("Inbox categories")}
             >
-              <%= for {label, cat, tab_id, icon} <- [
-            {gettext("All"), nil, "all", "icon-[tabler--inbox]"},
-            {gettext("Leads"), :lead, "lead", "icon-[tabler--user-dollar]"},
-            {gettext("Customers"), :customer, "customer", "icon-[tabler--users]"},
-            {gettext("Support"), :support, "support", "icon-[tabler--headset]"},
-            {gettext("Billing"), :billing, "billing", "icon-[tabler--receipt]"},
-            {gettext("Internal"), :internal, "internal", "icon-[tabler--building]"},
-            {gettext("Uncategorised"), :uncategorised, "uncategorised", "icon-[tabler--tag-off]"}
-          ] do %>
+              <%= for {label, cat, tab_id, icon} <- category_filter_options() do %>
                 <button
                   type="button"
                   id={"inbox-tab-#{tab_id}"}
@@ -1932,11 +2059,11 @@ defmodule KonevoWeb.InboxLive.Index do
                   aria-controls="inbox-threads"
                   aria-selected={@filter_category == cat}
                   class={[
-                    "flex min-w-[6.75rem] items-center justify-center gap-2 whitespace-nowrap rounded-none border-b-2 px-4 py-3 text-sm font-semibold transition-colors duration-150 !rounded-none sm:min-w-[7.75rem]",
+                    "flex min-w-[7.75rem] items-center justify-center gap-2 whitespace-nowrap rounded-none border-b-2 px-4 py-3 text-sm font-semibold transition-colors duration-150 !rounded-none",
                     if(@filter_category == cat,
                       do: "border-primary text-primary",
                       else:
-                        "border-transparent text-base-content/70 hover:border-base-content/20 hover:text-base-content"
+                        "border-transparent text-base-content/80 hover:border-base-content/20 hover:text-base-content"
                     )
                   ]}
                 >
@@ -1966,7 +2093,7 @@ defmodule KonevoWeb.InboxLive.Index do
               <:loading>
                 <div
                   id="inbox-threads-loading"
-                  class="flex flex-col divide-y divide-base-content/8"
+                  class="flex flex-col divide-y divide-base-content/8 border-t border-base-content/10 sm:border-t-0"
                   aria-busy="true"
                   aria-label={gettext("Loading threads")}
                 >
@@ -2023,7 +2150,7 @@ defmodule KonevoWeb.InboxLive.Index do
               <div
                 id="inbox-threads"
                 phx-update="stream"
-                class="flex flex-col divide-y divide-base-content/8"
+                class="flex flex-col divide-y divide-base-content/8 border-t border-base-content/10 sm:border-t-0"
               >
                 <div
                   id="threads-empty"
@@ -2217,28 +2344,33 @@ defmodule KonevoWeb.InboxLive.Index do
                   </div>
 
                   <%!-- Mobile layout --%>
-                  <div class="flex sm:hidden items-start gap-3 px-4 py-3.5">
-                    <.link
-                      navigate={~p"/inbox/#{thread.id}"}
-                      class="flex min-w-0 flex-1 items-start gap-3"
-                    >
-                      <%!-- Avatar circle --%>
-                      <div class={[
-                        "flex size-10 shrink-0 items-center justify-center rounded-lg text-sm font-bold",
-                        category_badge_class(thread.category)
-                      ]}>
-                        {sender_initials(thread, @mailbox_emails)}
-                      </div>
+                  <div class="flex items-start gap-2.5 px-3 py-3 sm:hidden">
+                    <input
+                      type="checkbox"
+                      id={"thread-select-mobile-#{thread.id}"}
+                      aria-label={gettext("Select thread")}
+                      class="checkbox checkbox-xs mt-2 shrink-0 rounded-sm"
+                      phx-click="toggle_select_thread"
+                      phx-value-id={thread.id}
+                      data-inbox-thread-select={thread.id}
+                      checked={thread_selected?(@selected_thread_ids, thread.id)}
+                    />
+                    <div class="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary">
+                      {sender_initials(thread, @mailbox_emails)}
+                    </div>
 
-                      <%!-- Content --%>
-                      <div class="min-w-0 flex-1">
-                        <div class="flex items-center justify-between gap-2">
+                    <div class="min-w-0 flex-1">
+                      <div class="flex min-w-0 items-center gap-1.5">
+                        <.link
+                          navigate={~p"/inbox/#{thread.id}"}
+                          class="flex min-w-0 flex-1 items-center gap-1.5"
+                        >
                           <p
                             class={[
-                              "truncate text-sm",
+                              "min-w-0 flex-1 truncate text-sm leading-tight",
                               if(unread?(thread),
                                 do: "font-semibold text-base-content",
-                                else: "font-normal text-base-content/50"
+                                else: "font-normal text-base-content/55"
                               )
                             ]}
                             id={"thread-sender-mobile-#{thread.id}"}
@@ -2246,42 +2378,44 @@ defmodule KonevoWeb.InboxLive.Index do
                             {thread_sender(thread, @mailbox_emails)}
                           </p>
                           <span
-                            :if={sender_info?(thread, @mailbox_emails)}
-                            class="sender-info-trigger"
-                            data-sender-details={sender_details(thread, @mailbox_emails)}
+                            :if={new_unread?(thread)}
+                            class="inline-flex shrink-0 items-center rounded-full bg-emerald-500/12 px-1.5 py-0.5 text-[10px] font-bold uppercase leading-none text-emerald-600 ring-1 ring-emerald-500/20"
                           >
-                            <.icon name="icon-[tabler--info-circle]" class="size-3.5" />
-                            <span class="sender-info-popover">
-                              {sender_details(thread, @mailbox_emails)}
-                            </span>
+                            {gettext("New")}
                           </span>
-                          <div class="flex shrink-0 items-center gap-2">
-                            <span
-                              :if={new_unread?(thread)}
-                              class="inline-flex shrink-0 items-center rounded-full bg-emerald-500/12 px-1.5 py-0.5 text-[10px] font-bold uppercase leading-none text-emerald-600 ring-1 ring-emerald-500/20"
-                            >
-                              {gettext("New")}
-                            </span>
-                            <span class={[
-                              "text-xs",
-                              if(unread?(thread),
-                                do: "text-base-content/50",
-                                else: "text-base-content/30"
-                              )
-                            ]}>
-                              {format_time(display_activity_at(thread))}
-                            </span>
-                            <span
-                              :if={thread.has_attachments}
-                              class="icon-[tabler--paperclip] size-3.5 text-base-content/35"
-                            />
-                          </div>
-                        </div>
+                          <span class={[
+                            "shrink-0 text-[11px] tabular-nums",
+                            if(unread?(thread),
+                              do: "text-base-content/50",
+                              else: "text-base-content/35"
+                            )
+                          ]}>
+                            {format_time(display_activity_at(thread))}
+                          </span>
+                        </.link>
+                        <button
+                          type="button"
+                          phx-click="toggle_favorite"
+                          phx-value-id={thread.id}
+                          aria-label={gettext("Toggle favorite")}
+                          class="flex size-8 shrink-0 items-center justify-center rounded-full text-base-content/35 transition-colors hover:bg-warning/10 hover:text-warning"
+                        >
+                          <span class={[
+                            "size-4",
+                            if(thread.is_favorite,
+                              do: "icon-[tabler--star-filled] text-warning",
+                              else: "icon-[tabler--star] text-base-content/30"
+                            )
+                          ]} />
+                        </button>
+                      </div>
+
+                      <.link navigate={~p"/inbox/#{thread.id}"} class="block min-w-0 pt-1">
                         <p class={[
-                          "mt-0.5 truncate text-sm",
+                          "truncate text-sm leading-snug",
                           if(unread?(thread),
                             do: "font-semibold text-base-content",
-                            else: "font-normal text-base-content/40"
+                            else: "font-normal text-base-content/55"
                           )
                         ]}>
                           {thread.subject || gettext("(no subject)")}
@@ -2294,34 +2428,39 @@ defmodule KonevoWeb.InboxLive.Index do
                           </span>
                         </p>
                         <p class={[
-                          "mt-0.5 truncate text-xs",
+                          "mt-0.5 truncate text-xs leading-tight",
                           if(unread?(thread),
                             do: "text-base-content/50",
-                            else: "text-base-content/30"
+                            else: "text-base-content/35"
                           )
                         ]}>
                           {thread.snippet}
                         </p>
-                      </div>
-                    </.link>
+                      </.link>
 
-                    <div class="flex shrink-0 flex-col items-end gap-2">
-                      <button
-                        type="button"
-                        phx-click="toggle_favorite"
-                        phx-value-id={thread.id}
-                        aria-label={gettext("Toggle favorite")}
-                        class="flex size-7 items-center justify-center rounded-md text-base-content/30 transition-colors hover:bg-base-content/8 hover:text-warning"
-                      >
-                        <span class={[
-                          "size-4",
-                          if(thread.is_favorite,
-                            do: "icon-[tabler--star-filled] text-warning",
-                            else: "icon-[tabler--star] text-base-content/25"
-                          )
-                        ]} />
-                      </button>
-                      <.category_picker thread={thread} compact />
+                      <div class="mt-2 flex items-center justify-between gap-2">
+                        <.category_picker thread={thread} compact />
+                        <div class="flex shrink-0 items-center gap-1.5 text-base-content/40">
+                          <span
+                            :if={sender_info?(thread, @mailbox_emails)}
+                            class="sender-info-trigger"
+                            data-sender-details={sender_details(thread, @mailbox_emails)}
+                          >
+                            <.icon name="icon-[tabler--info-circle]" class="size-3.5" />
+                            <span class="sender-info-popover">
+                              {sender_details(thread, @mailbox_emails)}
+                            </span>
+                          </span>
+                          <span
+                            :if={thread.has_attachments}
+                            class="icon-[tabler--paperclip] size-3.5"
+                          />
+                          <span
+                            :if={thread.is_unresolved}
+                            class="icon-[tabler--alert-circle] size-3.5 text-warning"
+                          />
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -2388,8 +2527,8 @@ defmodule KonevoWeb.InboxLive.Index do
           :if={@compose_open?}
           id="compose-window"
           class={[
-            "fixed bottom-0 left-3 right-3 z-50 flex max-w-[calc(100vw-1.5rem)] flex-col overflow-hidden rounded-t-lg border border-base-content/20 bg-base-100 shadow-2xl transition-all duration-200 sm:left-auto sm:right-6 sm:w-[560px]",
-            if(@compose_minimized?, do: "h-10", else: "h-[min(620px,calc(100vh-2rem))]")
+            "inbox-compose-window fixed bottom-0 left-2 right-2 z-50 flex max-w-[calc(100vw-1rem)] flex-col overflow-hidden rounded-t-xl border border-base-content/20 bg-base-100 shadow-2xl sm:left-auto sm:right-6 sm:w-[560px]",
+            if(@compose_minimized?, do: "h-10", else: "h-[min(620px,calc(100dvh-1rem))]")
           ]}
         >
           <%!-- Header --%>
@@ -2499,7 +2638,7 @@ defmodule KonevoWeb.InboxLive.Index do
                 field={@compose_form[:body]}
                 placeholder={gettext("Write your message…")}
                 fill_height={true}
-                class="!min-h-0 !rounded-none !border-0 !shadow-none tiptap-compact"
+                class="inbox-compose-editor !min-h-0 !rounded-none !border-0 !shadow-none tiptap-compact"
               />
             </div>
 

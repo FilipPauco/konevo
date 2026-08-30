@@ -7,15 +7,16 @@ the current implementation boundaries.
 ## Before production
 
 - Serve Konevo only over HTTPS behind a maintained reverse proxy or platform.
-- Set a long, unique `SECRET_KEY_BASE` using `mix phx.gen.secret`.
+- Set a long, unique `SECRET_KEY_BASE`; `openssl rand -hex 64` generates one.
 - Use a strong initial owner password and create separate accounts for people who
   need access; do not share credentials.
 - Restrict PostgreSQL to the application network and use unique database
   credentials.
 - Persist `UPLOADS_ROOT` outside the release directory with restrictive filesystem
   permissions. Include it in backups.
-- Store environment variables in the deployment platform's secret manager, not in
-  `.env` committed to Git.
+- For the supplied Docker workflow, store environment variables only in the
+  root-owned `/opt/konevo/app/.env` file. Never commit that file to Git or add it
+  to GitHub secrets.
 - Keep the operating system, Erlang/Elixir runtime, PostgreSQL, ImageMagick, and
   dependencies patched.
 

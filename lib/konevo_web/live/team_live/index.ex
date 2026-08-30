@@ -119,6 +119,14 @@ defmodule KonevoWeb.TeamLive.Index do
     {:noreply, push_patch(socket, to: build_url(socket, %{search: "", page: 1}), replace: true)}
   end
 
+  def handle_event("clear_filters", _params, socket) do
+    {:noreply,
+     push_patch(socket,
+       to: build_url(socket, %{search: "", archive_filter: :active, page: 1}),
+       replace: true
+     )}
+  end
+
   def handle_event("set_archive_filter", %{"filter" => filter}, socket) do
     archive_filter = parse_archive_filter(filter)
 
@@ -300,19 +308,26 @@ defmodule KonevoWeb.TeamLive.Index do
       )
       |> assign(:page_to, min(assigns.page * @per_page, assigns.total))
       |> assign(:page_numbers, page_display(assigns.page, total_pages))
+      |> assign(:filters_active?, assigns.search != "" or assigns.archive_filter != :active)
 
     ~H"""
     <Layouts.app flash={@flash} current_scope={@current_scope} current_path={@current_path}>
       <Layouts.page title={@page_title}>
         <:actions :if={@can_manage}>
-          <.button phx-click="open_invite" class="btn btn-primary btn-sm gap-1.5">
+          <.button
+            id="invite-member-button"
+            phx-click="open_invite"
+            disabled
+            title={gettext("Member invitations are not available yet")}
+            class="btn btn-primary btn-sm gap-1.5 disabled:cursor-not-allowed disabled:opacity-50"
+          >
             <.icon name="icon-[tabler--user-plus]" class="size-4" />
             {gettext("Invite member")}
           </.button>
         </:actions>
 
         <div class="mb-4 flex flex-wrap items-center gap-2">
-          <div class="relative w-64 shrink-0">
+          <div class="relative w-full shrink-0 sm:w-64">
             <.icon
               name="icon-[tabler--search]"
               class="pointer-events-none absolute left-2.5 top-1/2 z-10 size-3.5 -translate-y-1/2 text-base-content/40"
@@ -342,22 +357,98 @@ defmodule KonevoWeb.TeamLive.Index do
             </button>
           </div>
 
-          <.archive_filter_dropdown
-            id="team-archive-filter"
-            selected={@archive_filter}
-            options={archive_filter_options()}
-          />
+          <div class="hidden sm:block">
+            <.archive_filter_dropdown
+              id="team-archive-filter"
+              selected={@archive_filter}
+              options={archive_filter_options()}
+            />
+          </div>
+
+          <div class="flex items-center gap-2 sm:hidden">
+            <button
+              type="button"
+              class={[
+                "btn btn-sm gap-1.5 border select-none",
+                if(@archive_filter != :active,
+                  do: "border-primary/50 bg-primary/10 text-primary hover:bg-primary/15",
+                  else:
+                    "border-base-content/20 bg-base-100 text-base-content hover:border-base-content/30"
+                )
+              ]}
+              phx-click={
+                JS.toggle(
+                  to: "#team-filter-panel",
+                  display: "flex",
+                  in:
+                    {"transition ease-out duration-200", "opacity-0 -translate-y-1",
+                     "opacity-100 translate-y-0"},
+                  out:
+                    {"transition ease-in duration-150", "opacity-100 translate-y-0",
+                     "opacity-0 -translate-y-1"}
+                )
+                |> JS.toggle_class("rotate-180", to: "#team-filter-chevron")
+              }
+            >
+              <.icon name="icon-[tabler--adjustments-horizontal]" class="size-3.5" />
+              {gettext("Filters")}
+              <span
+                :if={@archive_filter != :active}
+                class="flex size-4 items-center justify-center rounded-full bg-primary text-[10px] font-bold text-primary-content"
+              >
+                1
+              </span>
+              <.icon
+                id="team-filter-chevron"
+                name="icon-[tabler--chevron-down]"
+                class="size-3.5 opacity-50 transition-transform duration-200"
+              />
+            </button>
+            <button
+              :if={@filters_active?}
+              id="team-clear-filters-mobile"
+              phx-click="clear_filters"
+              type="button"
+              aria-label={gettext("Clear filters")}
+              class="btn btn-sm btn-square border border-base-content/20 bg-base-100 text-base-content/60 transition-all hover:border-base-content/30 hover:text-base-content"
+            >
+              <.icon name="icon-[tabler--x]" class="size-3.5" />
+            </button>
+          </div>
+
+          <div
+            id="team-filter-panel"
+            class="hidden w-full flex-wrap items-center gap-2 rounded-xl border border-secondary/35 bg-secondary/10 p-3 sm:hidden"
+          >
+            <.archive_filter_dropdown
+              id="team-archive-filter-mobile"
+              selected={@archive_filter}
+              options={archive_filter_options()}
+            />
+          </div>
+
+          <div :if={@filters_active?} class="hidden border-l border-base-content/15 pl-2 sm:block">
+            <button
+              id="team-clear-filters"
+              phx-click="clear_filters"
+              type="button"
+              class="btn btn-sm gap-1.5 border border-base-content/20 bg-base-100 text-base-content/60 transition-all hover:border-base-content/30 hover:text-base-content"
+            >
+              <.icon name="icon-[tabler--x]" class="size-3" />
+              {gettext("Clear filters")}
+            </button>
+          </div>
         </div>
 
         <.async_result :let={_stream_ready?} assign={@members}>
           <:loading>
             <div
               id="team-loading"
-              class="overflow-x-auto rounded-xl border border-base-content/20 bg-base-100"
+              class="mobile-data-table-container overflow-x-auto rounded-xl border border-base-content/20 bg-base-100"
               aria-busy="true"
               aria-label={gettext("Loading team members")}
             >
-              <table class="table w-full min-w-[44rem] table-fixed">
+              <table class="mobile-data-table table w-full min-w-[44rem] table-fixed">
                 <.members_table_header
                   sort_by={@sort_by}
                   sort_dir={@sort_dir}
@@ -366,7 +457,7 @@ defmodule KonevoWeb.TeamLive.Index do
                   <tr
                     :for={row <- 1..6}
                     id={"member-skeleton-#{row}"}
-                    class="divide-x divide-base-content/8"
+                    class="mobile-data-skeleton divide-x divide-base-content/8"
                   >
                     <td class="px-4 py-3">
                       <div class="flex items-center gap-3">
@@ -401,13 +492,17 @@ defmodule KonevoWeb.TeamLive.Index do
 
           <div
             id="team-table"
-            class="overflow-x-auto rounded-xl border border-base-content/20 bg-base-100"
+            class="mobile-data-table-container overflow-x-auto rounded-xl border border-base-content/20 bg-base-100"
           >
-            <table class="table w-full min-w-[44rem] table-fixed">
+            <table class="mobile-data-table table w-full min-w-[44rem] table-fixed">
               <.members_table_header sort_by={@sort_by} sort_dir={@sort_dir} />
 
               <tbody id="members" phx-update="stream" class="divide-y divide-base-content/8">
-                <tr :if={!@members.loading} id="members-empty" class="hidden only:table-row">
+                <tr
+                  :if={!@members.loading}
+                  id="members-empty"
+                  class="mobile-data-empty hidden only:table-row"
+                >
                   <td colspan="3" class="px-4 py-16 text-center">
                     <.icon
                       name="icon-[tabler--users]"
@@ -425,9 +520,9 @@ defmodule KonevoWeb.TeamLive.Index do
                 <tr
                   :for={{id, membership} <- @streams.members}
                   id={id}
-                  class="group divide-x divide-base-content/8 transition-colors hover:bg-base-200/40"
+                  class="mobile-data-card group divide-x divide-base-content/8 transition-colors hover:bg-base-200/40"
                 >
-                  <td class="relative px-4 py-3">
+                  <td class="mobile-data-title relative px-4 py-3">
                     <div class="flex min-w-0 items-center gap-3 pr-8">
                       <div class="flex size-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary">
                         {avatar_initials(membership.user.email)}
@@ -499,7 +594,8 @@ defmodule KonevoWeb.TeamLive.Index do
                     </div>
                   </td>
 
-                  <td class="px-4 py-3">
+                  <td class="mobile-data-field mobile-data-field--primary px-4 py-3">
+                    <span class="mobile-data-field-label">{gettext("Role")}</span>
                     <%= if @can_manage and membership.role != :owner do %>
                       <form
                         id={"member-role-form-#{membership.id}"}
@@ -523,8 +619,9 @@ defmodule KonevoWeb.TeamLive.Index do
                     <% end %>
                   </td>
 
-                  <td class="px-4 py-3 text-sm text-base-content/60">
-                    {Calendar.strftime(membership.inserted_at, "%b %-d, %Y")}
+                  <td class="mobile-data-field mobile-data-field--end px-4 py-3 text-sm text-base-content/60">
+                    <span class="mobile-data-field-label">{gettext("Joined")}</span>
+                    <span>{Calendar.strftime(membership.inserted_at, "%b %-d, %Y")}</span>
                   </td>
                 </tr>
               </tbody>
@@ -533,20 +630,16 @@ defmodule KonevoWeb.TeamLive.Index do
         </.async_result>
 
         <div
-          :if={@members.ok? and !@members.loading}
+          :if={@members.ok? and !@members.loading and @total > 0}
           id="team-footer"
           class="mt-6 flex flex-wrap items-center justify-between gap-3"
         >
           <p class="text-sm text-base-content/50">
-            <%= if @total == 0 do %>
-              {gettext("No team members found")}
-            <% else %>
-              {gettext("Showing %{from}-%{to} of %{total}",
-                from: @page_from,
-                to: @page_to,
-                total: @total
-              )}
-            <% end %>
+            {gettext("Showing %{from}-%{to} of %{total}",
+              from: @page_from,
+              to: @page_to,
+              total: @total
+            )}
           </p>
           <nav :if={@total_pages > 1} aria-label={gettext("Pagination")}>
             <ul class="flex items-center gap-0.5 rounded-xl border border-base-content/10 bg-base-100 p-1 shadow-sm">

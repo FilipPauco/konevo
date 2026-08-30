@@ -10,6 +10,7 @@ defmodule KonevoWeb.TestLandingLiveTest do
     assert has_element?(view, "#test-landing-navigation")
     assert has_element?(view, "#test-landing-nav-product[type='button'][aria-current='page']")
     assert has_element?(view, "#test-landing-nav-how-it-works[href='#how-it-works']")
+    assert has_element?(view, "#test-landing-hero-how-it-works[href='#how-it-works']")
     assert has_element?(view, "#test-landing-nav-installation[href='#installation']")
     assert has_element?(view, "#test-landing-nav-contact[href='#contact']")
     assert has_element?(view, "#contact")
@@ -25,7 +26,7 @@ defmodule KonevoWeb.TestLandingLiveTest do
 
     assert has_element?(
              view,
-             "#test-landing-view-code[href='https://github.com/FilipPauco/konevo']"
+             "#test-landing-view-examples[href='/demo']"
            )
 
     assert has_element?(view, "#test-landing-hero-source-available")

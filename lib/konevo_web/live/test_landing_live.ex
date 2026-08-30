@@ -11,11 +11,11 @@ defmodule KonevoWeb.TestLandingLive do
   def mount(_params, _session, socket) do
     socket =
       socket
-      |> assign(:page_title, gettext("Self-hosted AI CRM for Gmail | Konevo"))
+      |> assign(:page_title, gettext("Self-hosted AI Inbox | Konevo"))
       |> assign(
         :seo_description,
         gettext(
-          "Turn Gmail conversations into contacts, tasks, and reviewable follow-ups with a self-hosted AI CRM."
+          "Turn inbox conversations into contacts, tasks, and reviewable follow-ups with a self-hosted AI CRM."
         )
       )
       |> assign(:seo_json_ld, Seo.software_application_json_ld())
@@ -79,28 +79,28 @@ defmodule KonevoWeb.TestLandingLive do
   def render(assigns) do
     ~H"""
     <main id="test-landing" class="min-h-screen overflow-hidden bg-base-100 text-base-content">
-      <section class="relative isolate overflow-hidden border-b border-base-content/15">
+      <section class="relative isolate overflow-hidden">
         <div aria-hidden="true" class="landing-grid absolute inset-0 -z-10 opacity-55" />
         <div
           aria-hidden="true"
           class="landing-glow absolute -right-48 -top-52 -z-10 size-[42rem] rounded-full"
         />
 
-        <header class="mx-auto flex max-w-7xl items-center justify-between px-5 py-5 sm:px-8 lg:px-10">
+        <header class="mx-auto flex max-w-7xl items-center justify-between px-5 py-3 sm:px-8 sm:py-5 lg:px-10">
           <a
             id="test-landing-brand"
             href={~p"/"}
             class="flex items-center gap-2.5"
             aria-label={gettext("Konevo home page")}
           >
-            <span class="flex size-12 shrink-0 items-center justify-center overflow-hidden rounded-xl">
+            <span class="flex size-10 shrink-0 items-center justify-center overflow-hidden rounded-xl sm:size-12">
               <img
                 src={~p"/images/logo-navbar-v2.png"}
                 alt=""
-                class="size-12 object-contain"
+                class="size-10 object-contain sm:size-12"
               />
             </span>
-            <span class="text-lg font-bold tracking-tight text-primary">Konevo</span>
+            <span class="text-base font-bold tracking-tight text-primary sm:text-lg">Konevo</span>
           </a>
 
           <nav
@@ -161,17 +161,15 @@ defmodule KonevoWeb.TestLandingLive do
               <.icon data-theme-icon="sun" name="icon-[tabler--sun]" class="hidden size-4" />
               <.icon data-theme-icon="moon" name="icon-[tabler--moon]" class="size-4" />
             </button>
-            <a
-              id="test-landing-view-code"
-              href="https://github.com/FilipPauco/konevo"
-              target="_blank"
-              rel="noreferrer"
-              class="btn btn-primary btn-sm gap-2 px-3 font-semibold shadow-lg shadow-primary/20 transition-all hover:-translate-y-0.5 hover:shadow-primary/30 sm:px-4"
+            <.link
+              id="test-landing-view-examples"
+              navigate={~p"/demo"}
+              class="btn btn-primary btn-sm w-9 min-w-9 px-0 font-semibold shadow-lg shadow-primary/20 transition-all hover:-translate-y-0.5 hover:shadow-primary/30 sm:w-auto sm:min-w-0 sm:gap-2 sm:px-4"
             >
-              <.icon name="icon-[tabler--brand-github]" class="size-4" />
-              <span class="hidden sm:inline">{gettext("View source")}</span>
-              <span class="sr-only sm:hidden">{gettext("View source on GitHub")}</span>
-            </a>
+              <.icon name="icon-[tabler--sparkles]" class="size-4" />
+              <span class="hidden sm:inline">{gettext("View examples")}</span>
+              <span class="sr-only sm:hidden">{gettext("View examples")}</span>
+            </.link>
           </div>
         </header>
 
@@ -237,17 +235,21 @@ defmodule KonevoWeb.TestLandingLive do
                 })
               }
 
-              const observer = new IntersectionObserver(entries => {
-                const visible = entries
-                  .filter(entry => entry.isIntersecting)
-                  .sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0]
+              const updateActiveSection = () => {
+                const marker = window.scrollY + window.innerHeight * 0.35
+                const atPageBottom =
+                  Math.ceil(window.scrollY + window.innerHeight) >= document.documentElement.scrollHeight
+                const active = atPageBottom
+                  ? sections[sections.length - 1]
+                  : sections.reduce((current, candidate) =>
+                    candidate.section.offsetTop <= marker ? candidate : current
+                  )
 
-                if (visible) {
-                  const activeItem = sections.find(({section}) => section === visible.target).item
-                  setActive(activeItem)
-                  replaceHash(activeItem)
+                if (active) {
+                  setActive(active.item)
+                  replaceHash(active.item)
                 }
-              }, {rootMargin: "-18% 0px -64% 0px", threshold: [0.1, 0.35, 0.65]})
+              }
 
               this.onNavigationClick = event => {
                 const link = event.target.closest("[data-nav-item]")
@@ -275,35 +277,36 @@ defmodule KonevoWeb.TestLandingLive do
                 })
               }
 
-              sections.forEach(({section}) => observer.observe(section))
+              this.onScroll = () => requestAnimationFrame(updateActiveSection)
               this.el.addEventListener("click", this.onNavigationClick)
+              window.addEventListener("scroll", this.onScroll, {passive: true})
               const initialItem =
                 links.find(link => link.hash === window.location.hash) ||
                   navItems.find(item => item.hasAttribute("data-nav-static"))
 
               setActive(initialItem)
-              this.observer = observer
+              updateActiveSection()
             },
             destroyed() {
-              this.observer?.disconnect()
               this.el.removeEventListener("click", this.onNavigationClick)
+              window.removeEventListener("scroll", this.onScroll)
             }
           }
         </script>
 
         <% preview = preview_copy(@active_preview) %>
-        <div class="mx-auto grid max-w-7xl gap-12 px-5 pb-16 pt-12 sm:px-8 sm:pt-20 lg:grid-cols-[.78fr_1.22fr] lg:items-center lg:px-10 lg:pb-24">
-          <div class="max-w-2xl">
+        <div class="mx-auto grid max-w-7xl gap-8 px-5 pb-12 pt-8 sm:gap-12 sm:px-8 sm:pb-16 sm:pt-10 lg:grid-cols-[.78fr_1.22fr] lg:items-start lg:px-10 lg:pb-24">
+          <div class="min-w-0 max-w-2xl">
             <div class="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/10 px-3 py-1.5 text-xs font-semibold text-primary">
               <span class="flex size-4 items-center justify-center rounded-full bg-primary text-primary-content">
                 <.icon name={preview.icon} class="size-3" />
               </span>
               {preview.label}
             </div>
-            <h1 class="mt-5 text-4xl font-bold leading-[0.98] tracking-[-0.055em] text-balance sm:mt-6 sm:text-6xl lg:text-7xl">
+            <h1 class="mt-4 text-3xl font-bold leading-[0.98] tracking-[-0.055em] text-balance sm:mt-6 sm:text-6xl lg:text-7xl">
               {preview.title}
             </h1>
-            <p class="mt-5 max-h-[5.25rem] max-w-xl overflow-hidden text-base leading-7 text-base-content/65 sm:mt-6 sm:max-h-none sm:text-lg sm:leading-8">
+            <p class="mt-4 max-h-12 max-w-xl overflow-hidden text-sm leading-6 text-base-content/65 sm:mt-6 sm:max-h-none sm:text-lg sm:leading-8">
               {preview.description}
             </p>
             <p class="hidden mt-6 max-w-xl text-lg leading-8 text-base-content/65">
@@ -323,7 +326,8 @@ defmodule KonevoWeb.TestLandingLive do
                 {gettext("View source")}
               </a>
               <a
-                href="#product"
+                id="test-landing-hero-how-it-works"
+                href="#how-it-works"
                 class="hidden btn btn-ghost btn-md w-full gap-2 px-4 shadow-none transition-transform duration-150 hover:shadow-none active:shadow-none sm:flex sm:btn-lg sm:w-auto sm:px-6 sm:hover:-translate-y-0.5 motion-reduce:transform-none"
               >
                 <.icon name="icon-[tabler--player-play]" class="size-4" />
@@ -349,7 +353,7 @@ defmodule KonevoWeb.TestLandingLive do
           <div
             id="product"
             phx-hook=".PreviewAutoplay"
-            class="relative mx-auto w-full max-w-3xl lg:mx-0"
+            class="relative mx-auto min-w-0 w-full max-w-3xl lg:mx-0"
           >
             <div
               aria-hidden="true"
@@ -553,7 +557,7 @@ defmodule KonevoWeb.TestLandingLive do
               href="https://github.com/FilipPauco/konevo"
               target="_blank"
               rel="noreferrer"
-              class="btn btn-primary btn-md mt-6 w-full gap-2 shadow-none transition-transform duration-150 hover:-translate-y-0.5 hover:shadow-none active:shadow-none motion-reduce:transform-none sm:hidden"
+              class="btn btn-primary btn-md mt-8 w-full gap-2 shadow-none transition-transform duration-150 hover:-translate-y-0.5 hover:shadow-none active:shadow-none motion-reduce:transform-none sm:hidden"
             >
               <.icon name="icon-[tabler--brand-github]" class="size-5" />
               {gettext("View source")}
@@ -638,74 +642,76 @@ defmodule KonevoWeb.TestLandingLive do
         </div>
       </section>
 
-      <section id="how-it-works" class="mx-auto max-w-7xl px-5 py-20 sm:px-8 lg:px-10 lg:py-28">
-        <div class="max-w-2xl">
-          <h2 class="text-3xl font-bold tracking-tight sm:text-4xl">
-            {gettext("From inbox to follow-up, without the busywork.")}
-          </h2>
-          <p class="mt-4 text-base leading-7 text-base-content/60">
-            {gettext(
-              "Konevo makes your inbox the source of truth, then gives every conversation a clear next move."
-            )}
-          </p>
-        </div>
-        <div class="mt-12 grid gap-4 md:grid-cols-3">
-          <.feature_card
-            number="01"
-            icon="icon-[tabler--mail-ai]"
-            title={gettext("Connect your inbox")}
-            description={
-              gettext(
-                "Bring conversations, customers, and context together without manual importing."
-              )
-            }
-          />
-          <.feature_card
-            number="02"
-            icon="icon-[tabler--sparkles]"
-            title={gettext("Let AI find the signal")}
-            description={
-              gettext(
-                "Spot waiting leads, extract tasks, and prepare thoughtful replies with context."
-              )
-            }
-          />
-          <.feature_card
-            number="03"
-            icon="icon-[tabler--arrow-up-right]"
-            title={gettext("Keep every opportunity moving")}
-            description={
-              gettext("Follow through with a focused queue, shared pipeline, and timely reminders.")
-            }
-          />
-        </div>
-        <div class="mt-16 grid gap-10 border-t border-base-content/8 pt-16 lg:grid-cols-[0.78fr_1.22fr] lg:items-center">
-          <div class="max-w-xl">
-            <p class="text-sm font-semibold text-primary">{gettext("Set the right context")}</p>
-            <h3 class="mt-3 text-3xl font-bold tracking-tight sm:text-4xl">
-              {gettext("AI that understands how your team works.")}
-            </h3>
+      <section id="how-it-works" class="border-t border-base-content/15">
+        <div class="mx-auto max-w-7xl px-5 py-20 sm:px-8 lg:px-10 lg:py-28">
+          <div class="max-w-2xl">
+            <h2 class="text-3xl font-bold tracking-tight sm:text-4xl">
+              {gettext("From inbox to follow-up, without the busywork.")}
+            </h2>
             <p class="mt-4 text-base leading-7 text-base-content/60">
               {gettext(
-                "Tell Konevo about your business, your preferred tone, and the rules that matter. Every AI draft starts with that shared context."
+                "Konevo makes your inbox the source of truth, then gives every conversation a clear next move."
               )}
             </p>
-            <div class="mt-7 flex items-center gap-2 text-sm font-medium text-primary">
-              <.icon name="icon-[tabler--sparkles]" class="size-4" />
-              {gettext("Your context stays in your workspace")}
-            </div>
           </div>
-          <div class="landing-product-demo overflow-hidden rounded-2xl border border-base-content/12 bg-base-100 shadow-2xl shadow-base-content/12">
-            <div class="flex items-center gap-2 border-b border-base-content/10 bg-base-200/55 px-4 py-3">
-              <span class="flex size-6 items-center justify-center rounded-md bg-primary/10 text-primary">
-                <.icon name="icon-[tabler--browser]" class="size-3.5" />
-              </span>
-              <div class="ml-1 flex h-6 flex-1 items-center rounded-md bg-base-100 px-2.5 text-[10px] text-base-content/40">
-                konevo/settings/ai
+          <div class="mt-12 grid gap-4 md:grid-cols-3">
+            <.feature_card
+              number="01"
+              icon="icon-[tabler--mail-ai]"
+              title={gettext("Connect your inbox")}
+              description={
+                gettext(
+                  "Bring conversations, customers, and context together without manual importing."
+                )
+              }
+            />
+            <.feature_card
+              number="02"
+              icon="icon-[tabler--sparkles]"
+              title={gettext("Let AI find the signal")}
+              description={
+                gettext(
+                  "Spot waiting leads, extract tasks, and prepare thoughtful replies with context."
+                )
+              }
+            />
+            <.feature_card
+              number="03"
+              icon="icon-[tabler--arrow-up-right]"
+              title={gettext("Keep every opportunity moving")}
+              description={
+                gettext("Follow through with a focused queue, shared pipeline, and timely reminders.")
+              }
+            />
+          </div>
+          <div class="mt-16 grid gap-10 border-t border-base-content/8 pt-16 lg:grid-cols-[0.78fr_1.22fr] lg:items-center">
+            <div class="max-w-xl">
+              <p class="text-sm font-semibold text-primary">{gettext("Set the right context")}</p>
+              <h3 class="mt-3 text-3xl font-bold tracking-tight sm:text-4xl">
+                {gettext("AI that understands how your team works.")}
+              </h3>
+              <p class="mt-4 text-base leading-7 text-base-content/60">
+                {gettext(
+                  "Tell Konevo about your business, your preferred tone, and the rules that matter. Every AI draft starts with that shared context."
+                )}
+              </p>
+              <div class="mt-7 flex items-center gap-2 text-sm font-medium text-primary">
+                <.icon name="icon-[tabler--sparkles]" class="size-4" />
+                {gettext("Your context stays in your workspace")}
               </div>
             </div>
-            <div class="h-[24rem] p-3 sm:h-[31rem] sm:p-5">
-              <.ai_settings_preview />
+            <div class="landing-product-demo overflow-hidden rounded-2xl border border-base-content/12 bg-base-100 shadow-2xl shadow-base-content/12">
+              <div class="flex items-center gap-2 border-b border-base-content/10 bg-base-200/55 px-4 py-3">
+                <span class="flex size-6 items-center justify-center rounded-md bg-primary/10 text-primary">
+                  <.icon name="icon-[tabler--browser]" class="size-3.5" />
+                </span>
+                <div class="ml-1 flex h-6 flex-1 items-center rounded-md bg-base-100 px-2.5 text-[10px] text-base-content/40">
+                  konevo/settings/ai
+                </div>
+              </div>
+              <div class="h-[24rem] p-3 sm:h-[31rem] sm:p-5">
+                <.ai_settings_preview />
+              </div>
             </div>
           </div>
         </div>
@@ -983,20 +989,32 @@ defmodule KonevoWeb.TestLandingLive do
             </h2>
             <p class="mt-4 text-base leading-7 text-base-content/60">
               {gettext(
-                "Bring a Linux server with Docker Compose and a domain pointed at it. Konevo pulls a published release image, starts PostgreSQL and Caddy, and provisions HTTPS automatically."
+                "Bring a Linux server with Docker Compose and a domain pointed at it. Clone the deployment bundle once; it starts PostgreSQL and Caddy, provisions HTTPS automatically, and can optionally pull published release images."
               )}
             </p>
           </div>
 
-          <div class="mt-12 grid gap-5 lg:grid-cols-3">
+          <div class="mx-auto mt-8 flex max-w-4xl items-start gap-3 rounded-2xl border border-primary/20 bg-primary/8 p-4 text-sm leading-6 text-base-content/70">
+            <.icon name="icon-[tabler--info-circle]" class="mt-0.5 size-5 shrink-0 text-primary" />
+            <div>
+              <p class="font-semibold text-base-content">{gettext("Deployment model")}</p>
+              <p class="mt-1">
+                {gettext(
+                  "Konevo is designed for one Linux server running Docker Compose. Kubernetes is not required or officially maintained; teams with multi-node or high-availability requirements can adapt the published container image to their own infrastructure."
+                )}
+              </p>
+            </div>
+          </div>
+
+          <div class="mx-auto mt-8 flex max-w-4xl flex-col gap-5">
             <.installation_step
               id="installation-download"
               number="01"
               icon="icon-[tabler--download]"
-              title={gettext("Download the deployment files")}
+              title={gettext("Clone the deployment bundle")}
               description={
                 gettext(
-                  "Create a dedicated directory, then download the Compose stack, HTTPS proxy configuration, and environment template."
+                  "Create a restricted deployment account, then clone the repository. Do not download individual deployment files with curl."
                 )
               }
             >
@@ -1013,7 +1031,7 @@ defmodule KonevoWeb.TestLandingLive do
               title={gettext("Add your hostname and credentials")}
               description={
                 gettext(
-                  "Set your domain, first owner, Google OAuth, database password, and Resend sender details in the included template."
+                  "Keep application settings and secrets only in the server environment file. Set APP_IMAGE to the published release you want to run; the public repository identifiers are needed only for automatic updates."
                 )
               }
             >
@@ -1030,7 +1048,7 @@ defmodule KonevoWeb.TestLandingLive do
               title={gettext("Launch Konevo")}
               description={
                 gettext(
-                  "Start the app, database, and reverse proxy. Then create the owner account configured in your environment file."
+                  "Start a chosen published release. Optionally install the release timer to automatically deploy the newest release without a GitHub SSH key."
                 )
               }
             >
@@ -1111,7 +1129,7 @@ defmodule KonevoWeb.TestLandingLive do
         }
       </script>
 
-      <section id="contact" class="landing-section-tint border-y border-base-content/15">
+      <section id="contact" class="landing-section-tint border-t border-base-content/15">
         <div class="mx-auto grid max-w-7xl gap-10 px-5 py-16 sm:px-8 lg:grid-cols-[.9fr_1.1fr] lg:items-center lg:px-10 lg:py-20">
           <div class="flex size-16 items-center justify-center rounded-2xl bg-primary/12 text-primary ring-1 ring-primary/20">
             <.icon name="icon-[tabler--message-circle-2]" class="size-8" />
@@ -1151,7 +1169,7 @@ defmodule KonevoWeb.TestLandingLive do
         </div>
       </section>
 
-      <footer class="border-t border-base-content/8 px-5 py-5 sm:px-8 lg:px-10">
+      <footer class="border-t border-base-content/15 px-5 py-5 sm:px-8 lg:px-10">
         <div class="mx-auto flex max-w-7xl items-center justify-center gap-3 text-center text-sm text-base-content/50">
           <span class="whitespace-nowrap">&copy; {Date.utc_today().year} Konevo</span>
           <span aria-hidden="true" class="size-1 shrink-0 rounded-full bg-current opacity-60" />
@@ -2511,7 +2529,7 @@ defmodule KonevoWeb.TestLandingLive do
 
   defp mobile_product_preview(assigns) do
     ~H"""
-    <div class="h-[31rem] overflow-hidden bg-base-200/35">
+    <div class="h-[24rem] overflow-hidden bg-base-200/35">
       <header class="relative flex h-12 items-center justify-between border-b border-base-content/20 bg-base-100 px-3">
         <span class="btn btn-ghost btn-sm btn-square">
           <.icon name="icon-[tabler--menu-2]" class="size-4" />
@@ -3306,7 +3324,7 @@ defmodule KonevoWeb.TestLandingLive do
 
   defp contacts_preview(assigns) do
     ~H"""
-    <div class="flex h-full flex-col">
+    <div class="flex h-full min-h-0 flex-col overflow-hidden">
       <div class="flex items-center justify-between">
         <h2 class="text-lg font-bold">{gettext("Contacts")}</h2>
         <span class="btn btn-primary btn-xs gap-1">
@@ -3347,14 +3365,14 @@ defmodule KonevoWeb.TestLandingLive do
           </span>
         </span>
       </div>
-      <section class="mt-3 overflow-hidden rounded-xl border border-base-content/10 bg-base-100 shadow-sm">
+      <section class="mt-2 min-h-0 flex-1 overflow-hidden rounded-xl border border-base-content/10 bg-base-100 shadow-sm">
         <table class="w-full table-fixed">
           <thead>
             <tr class="border-b border-base-content/10 bg-base-200/35 text-left text-[8px] font-bold uppercase tracking-wide text-base-content/45">
-              <th class="px-3 py-2">{gettext("Name")}</th>
-              <th class="px-3 py-2">{gettext("Email")}</th>
-              <th class="px-3 py-2">{gettext("Company")}</th>
-              <th class="px-3 py-2">{gettext("Category")}</th>
+              <th class="px-3 py-1.5">{gettext("Name")}</th>
+              <th class="px-3 py-1.5">{gettext("Email")}</th>
+              <th class="px-3 py-1.5">{gettext("Company")}</th>
+              <th class="px-3 py-1.5">{gettext("Category")}</th>
             </tr>
           </thead>
           <tbody class="divide-y divide-base-content/8">
@@ -3446,70 +3464,72 @@ defmodule KonevoWeb.TestLandingLive do
 
   defp companies_preview(assigns) do
     ~H"""
-    <div class="flex items-center justify-between gap-3">
-      <h2 class="text-lg font-bold">{gettext("Companies")}</h2>
-      <span class="btn btn-primary btn-xs gap-1">
-        <.icon name="icon-[tabler--plus]" class="size-3" />{gettext("New Company")}
-      </span>
-    </div>
-    <div class="mt-4 flex flex-wrap items-center gap-2">
-      <div class="relative w-40">
-        <.icon
-          name="icon-[tabler--search]"
-          class="absolute left-2 top-1/2 size-3 -translate-y-1/2 text-base-content/40"
-        />
-        <div class="h-7 rounded-md border border-base-content/20 bg-base-100 pl-7 pr-2 text-[9px] leading-7 text-base-content/40">
-          {gettext("Search by name, website...")}
-        </div>
-      </div>
-      <span class="btn btn-xs border-base-content/20 bg-base-200/60 text-[9px] text-base-content">
-        <.icon name="icon-[tabler--archive]" class="size-3" />{gettext("Active")}
-      </span>
-      <span class="btn btn-xs border-base-content/20 bg-base-200/60 text-[9px] text-base-content">
-        <.icon name="icon-[tabler--building]" class="size-3" />{gettext("Industry")}
-      </span>
-      <span class="ml-auto flex rounded-md border border-base-content/15 bg-base-100 p-0.5">
-        <span class="rounded bg-neutral px-2 py-1 text-[8px] text-neutral-content">
-          <.icon name="icon-[tabler--table]" class="size-3" />
+    <div class="flex h-full min-h-0 flex-col overflow-hidden">
+      <div class="flex items-center justify-between gap-3">
+        <h2 class="text-lg font-bold">{gettext("Companies")}</h2>
+        <span class="btn btn-primary btn-xs gap-1">
+          <.icon name="icon-[tabler--plus]" class="size-3" />{gettext("New Company")}
         </span>
-        <span class="px-2 py-1 text-[8px] text-base-content/45">
+      </div>
+      <div class="mt-3 flex flex-wrap items-center gap-2">
+        <div class="relative w-40">
           <.icon
-            name="icon-[tabler--layout-grid]"
-            class="size-3"
+            name="icon-[tabler--search]"
+            class="absolute left-2 top-1/2 size-3 -translate-y-1/2 text-base-content/40"
           />
+          <div class="h-7 rounded-md border border-base-content/20 bg-base-100 pl-7 pr-2 text-[9px] leading-7 text-base-content/40">
+            {gettext("Search by name, website...")}
+          </div>
+        </div>
+        <span class="btn btn-xs border-base-content/20 bg-base-200/60 text-[9px] text-base-content">
+          <.icon name="icon-[tabler--archive]" class="size-3" />{gettext("Active")}
         </span>
-      </span>
-    </div>
-    <section class="mt-3 overflow-hidden rounded-xl border border-base-content/10 bg-base-100 shadow-sm">
-      <div class="grid grid-cols-[1.2fr_.7fr_.65fr_.45fr] border-b border-base-content/10 bg-base-200/35 px-3 py-2 text-[8px] font-bold uppercase tracking-wide text-base-content/45">
-        <span>{gettext("Company")}</span><span>{gettext("Industry")}</span><span>{gettext("Contacts")}</span><span>{gettext("Created")}</span>
+        <span class="btn btn-xs border-base-content/20 bg-base-200/60 text-[9px] text-base-content">
+          <.icon name="icon-[tabler--building]" class="size-3" />{gettext("Industry")}
+        </span>
+        <span class="ml-auto flex rounded-md border border-base-content/15 bg-base-100 p-0.5">
+          <span class="rounded bg-neutral px-2 py-1 text-[8px] text-neutral-content">
+            <.icon name="icon-[tabler--table]" class="size-3" />
+          </span>
+          <span class="px-2 py-1 text-[8px] text-base-content/45">
+            <.icon
+              name="icon-[tabler--layout-grid]"
+              class="size-3"
+            />
+          </span>
+        </span>
       </div>
-      <.company_item
-        name="Northstar"
-        website="northstar.co"
-        industry={gettext("Technology")}
-        contacts="12"
-        created={gettext("Today")}
-      /><.company_item
-        name="Acme Studio"
-        website="acmestudio.com"
-        industry={gettext("Design")}
-        contacts="8"
-        created={gettext("Yesterday")}
-      /><.company_item
-        name="Riviera Labs"
-        website="rivieralabs.io"
-        industry={gettext("SaaS")}
-        contacts="5"
-        created={gettext("Oct 9")}
-      /><.company_item
-        name="Pine & North"
-        website="pinenorth.com"
-        industry={gettext("Consulting")}
-        contacts="3"
-        created={gettext("Oct 7")}
-      />
-    </section>
+      <section class="mt-2 min-h-0 flex-1 overflow-hidden rounded-xl border border-base-content/10 bg-base-100 shadow-sm">
+        <div class="grid grid-cols-[1.2fr_.7fr_.65fr_.45fr] border-b border-base-content/10 bg-base-200/35 px-3 py-1.5 text-[8px] font-bold uppercase tracking-wide text-base-content/45">
+          <span>{gettext("Company")}</span><span>{gettext("Industry")}</span><span>{gettext("Contacts")}</span><span>{gettext("Created")}</span>
+        </div>
+        <.company_item
+          name="Northstar"
+          website="northstar.co"
+          industry={gettext("Technology")}
+          contacts="12"
+          created={gettext("Today")}
+        /><.company_item
+          name="Acme Studio"
+          website="acmestudio.com"
+          industry={gettext("Design")}
+          contacts="8"
+          created={gettext("Yesterday")}
+        /><.company_item
+          name="Riviera Labs"
+          website="rivieralabs.io"
+          industry={gettext("SaaS")}
+          contacts="5"
+          created={gettext("Oct 9")}
+        /><.company_item
+          name="Pine & North"
+          website="pinenorth.com"
+          industry={gettext("Consulting")}
+          contacts="3"
+          created={gettext("Oct 7")}
+        />
+      </section>
+    </div>
     """
   end
 
@@ -3910,7 +3930,7 @@ defmodule KonevoWeb.TestLandingLive do
           </div>
           <div>
             <p class="mb-1 text-[9px] font-medium text-base-content/60">
-              {gettext("Email behavior")}
+              {gettext("Email instructions")}
             </p>
             <div class="h-24 overflow-hidden rounded-lg border border-base-content/12 bg-base-200/30 p-2 text-[8px] leading-[0.875rem] text-base-content/65 sm:min-h-24 sm:h-auto sm:p-2.5 sm:text-[9px] sm:leading-4">
               {gettext(
@@ -4064,7 +4084,7 @@ defmodule KonevoWeb.TestLandingLive do
   defp contact_table_row(assigns) do
     ~H"""
     <tr class="border-b border-base-content/8 transition-colors hover:bg-base-200/40">
-      <td class="px-3 py-2">
+      <td class="px-3 py-1.5">
         <span class="flex min-w-0 items-center gap-2">
           <span class="flex size-5 shrink-0 items-center justify-center rounded-full bg-primary/10 text-[7px] font-bold text-primary">
             {@initials}
@@ -4072,9 +4092,9 @@ defmodule KonevoWeb.TestLandingLive do
           <span class="truncate text-[9px] font-semibold">{@name}</span>
         </span>
       </td>
-      <td class="truncate px-3 py-2 text-[8px] text-base-content/60">{@email}</td>
-      <td class="truncate px-3 py-2 text-[8px] text-base-content/60">{@company}</td>
-      <td class="px-3 py-2 text-[8px] text-base-content/60">{@category}</td>
+      <td class="truncate px-3 py-1.5 text-[8px] text-base-content/60">{@email}</td>
+      <td class="truncate px-3 py-1.5 text-[8px] text-base-content/60">{@company}</td>
+      <td class="px-3 py-1.5 text-[8px] text-base-content/60">{@category}</td>
     </tr>
     """
   end
@@ -4087,7 +4107,7 @@ defmodule KonevoWeb.TestLandingLive do
 
   defp company_item(assigns) do
     ~H"""
-    <div class="grid grid-cols-[1.2fr_.7fr_.65fr_.45fr] items-center border-b border-base-content/8 px-3 py-2.5">
+    <div class="grid grid-cols-[1.2fr_.7fr_.65fr_.45fr] items-center border-b border-base-content/8 px-3 py-2">
       <span class="min-w-0">
         <span class="block truncate text-[9px] font-semibold">{@name}</span><span class="block truncate text-[8px] text-base-content/45">{@website}</span>
       </span>
@@ -4445,11 +4465,8 @@ defmodule KonevoWeb.TestLandingLive do
   defp preview_copy("contacts") do
     %{
       label: gettext("Contacts"),
-      title: gettext("A relationship memory for your whole team."),
-      description:
-        gettext(
-          "See the people behind every conversation, their company, and the context that makes each follow-up personal."
-        ),
+      title: gettext("Every relationship, remembered."),
+      description: gettext("Keep every person, company, and follow-up in one shared view."),
       icon: "icon-[tabler--users]",
       position: "03"
     }
@@ -4458,10 +4475,10 @@ defmodule KonevoWeb.TestLandingLive do
   defp preview_copy("companies") do
     %{
       label: gettext("Companies"),
-      title: gettext("See the business behind every conversation."),
+      title: gettext("Every company, in context."),
       description:
         gettext(
-          "Keep company records, people, and their commercial context connected, so every team member starts with the full picture."
+          "Keep company records and people connected, so every team member has the full picture."
         ),
       icon: "icon-[tabler--building]",
       position: "04"
@@ -4637,42 +4654,55 @@ defmodule KonevoWeb.TestLandingLive do
 
   defp installation_download_commands do
     [
-      "# On your Linux server",
-      "sudo mkdir -p /opt/konevo/app/deploy/docker",
-      "sudo chown -R \"$USER\":\"$USER\" /opt/konevo",
-      "cd /opt/konevo/app",
+      "# Install Docker Engine and the Docker Compose plugin first.",
+      "sudo apt update && sudo apt install -y curl jq git",
+      "sudo adduser --system --group --home /opt/konevo --shell /usr/sbin/nologin konevo-deploy",
+      "sudo install -d -o konevo-deploy -g konevo-deploy /opt/konevo/app",
       "",
-      "curl -fsSL -o deploy/docker/compose.yaml \\",
-      "  https://raw.githubusercontent.com/FilipPauco/konevo/main/deploy/docker/compose.yaml",
-      "curl -fsSL -o deploy/docker/Caddyfile \\",
-      "  https://raw.githubusercontent.com/FilipPauco/konevo/main/deploy/docker/Caddyfile",
-      "curl -fsSL -o .env \\",
-      "  https://raw.githubusercontent.com/FilipPauco/konevo/main/.env.example"
+      "sudo -u konevo-deploy git clone https://github.com/FilipPauco/konevo.git /opt/konevo/app"
     ]
     |> Enum.join("\n")
   end
 
   defp installation_configuration_commands do
     [
-      "# Edit the values marked with placeholders",
-      "nano .env",
+      "# Keep production secrets only on this server.",
+      "sudo install -o root -g konevo-deploy -m 640 /opt/konevo/app/.env.example /opt/konevo/app/.env",
+      "sudoedit /opt/konevo/app/.env",
       "",
-      "# Then pin the latest published Konevo release image",
-      ~S{KONEVO_VERSION="$(curl -fsSL https://api.github.com/repos/FilipPauco/konevo/releases/latest | grep -m1 '"tag_name"' | cut -d '"' -f4)"},
-      "printf '\\nAPP_IMAGE=ghcr.io/filippauco/konevo-crm:%s\\n' \"$KONEVO_VERSION\" >> .env"
+      "# In /opt/konevo/app/.env, set APP_IMAGE=ghcr.io/filippauco/konevo:vX.Y.Z to the published release you want to run.",
+      "",
+      "# Optional: create this only if Konevo should automatically deploy each new GitHub Release from this repository.",
+      "sudo install -d -o root -g root -m 755 /etc/konevo",
+      "sudo install -o root -g root -m 644 /opt/konevo/app/deploy/docker/deploy.env.example /etc/konevo/deploy.env",
+      "sudoedit /etc/konevo/deploy.env",
+      "APP_IMAGE_REPOSITORY=ghcr.io/filippauco/konevo",
+      "GITHUB_REPOSITORY=FilipPauco/konevo"
     ]
     |> Enum.join("\n")
   end
 
   defp installation_launch_commands do
     [
-      "sudo mkdir -p /opt/konevo/uploads",
-      "docker compose --env-file .env -f deploy/docker/compose.yaml up -d",
+      "# Start the release selected by APP_IMAGE in /opt/konevo/app/.env.",
+      "sudo install -d -o 65534 -g 65534 -m 750 /opt/konevo/uploads",
+      "sudo install -d -o konevo-deploy -g konevo-deploy -m 750 /var/lib/konevo",
+      "sudo docker compose --env-file /opt/konevo/app/.env \\",
+      "  -f /opt/konevo/app/deploy/docker/compose.yaml up -d",
       "",
-      "docker compose --env-file .env -f deploy/docker/compose.yaml \\",
-      ~S{  exec app bin/konevo eval "Konevo.Release.create_owner()"},
+      "sudo docker compose --env-file /opt/konevo/app/.env \\",
+      "  -f /opt/konevo/app/deploy/docker/compose.yaml \\",
+      ~S{  exec app env -u PHX_SERVER bin/konevo eval 'IO.inspect(Konevo.Release.create_owner(), label: "Owner creation")'},
       "",
-      "# Open https://your-domain.example"
+      "# Now your app runs at https://your-domain.example",
+      "",
+      "# Optional: enable this to check the configured repository for new GitHub Releases and deploy them automatically.",
+      "sudo install -o root -g root -m 755 /opt/konevo/app/deploy/docker/konevo-deploy.sh /usr/local/sbin/konevo-deploy",
+      "sudo install -o root -g root -m 644 /opt/konevo/app/deploy/docker/konevo-deploy.service /etc/systemd/system/konevo-deploy.service",
+      "sudo install -o root -g root -m 644 /opt/konevo/app/deploy/docker/konevo-deploy.timer /etc/systemd/system/konevo-deploy.timer",
+      "sudo systemctl daemon-reload",
+      "sudo systemctl enable --now konevo-deploy.timer",
+      "sudo systemctl start konevo-deploy.service"
     ]
     |> Enum.join("\n")
   end

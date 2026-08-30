@@ -14,6 +14,7 @@ defmodule Konevo.Messaging do
   import Ecto.Query, warn: false
 
   alias Konevo.Compliance
+  alias Konevo.Contacts
   alias Konevo.Inbox
   alias Konevo.Messaging.{MessageDraft, MessageSent, Policy}
   alias Konevo.Repo
@@ -53,7 +54,7 @@ defmodule Konevo.Messaging do
       |> order_by(desc: :inserted_at)
       |> limit(^per_page)
       |> offset(^((page - 1) * per_page))
-      |> preload([:contact, :email_thread, :created_by, :approved_by])
+      |> preload([:contact, :source_email, :created_by, :approved_by, email_thread: [:emails]])
       |> Repo.all()
 
     {drafts, total}
@@ -131,6 +132,49 @@ defmodule Konevo.Messaging do
   def approve_draft(_scope, %MessageDraft{}, _edited_body), do: {:error, :not_pending}
 
   @doc """
+  Returns an approved draft to the review queue before it has been sent.
+  """
+  def unapprove_draft(scope, %MessageDraft{status: :approved} = draft) do
+    with :ok <- Bodyguard.permit(Policy, :update, scope.user, %{org: scope.org}) do
+      draft
+      |> MessageDraft.unapprove_changeset()
+      |> Repo.update()
+    end
+  end
+
+  def unapprove_draft(_scope, %MessageDraft{}), do: {:error, :not_approved}
+
+  @doc """
+  Creates or reuses the inbound sender's contact, links it to the source thread,
+  and returns an approved draft to review.
+  """
+  def create_contact_and_unapprove_draft(scope, %MessageDraft{status: :approved} = draft) do
+    draft = Repo.preload(draft, email_thread: [:emails])
+
+    with :ok <- Bodyguard.permit(Policy, :update, scope.user, %{org: scope.org}),
+         %{emails: emails} = thread <- draft.email_thread,
+         {:ok, sender_email} <- inbound_sender_email(emails) do
+      Repo.transact(fn ->
+        with {:ok, contact} <- Contacts.find_or_create_by_email(scope, sender_email),
+             {:ok, _thread} <- Inbox.link_contact(scope, thread, contact.id),
+             {:ok, review_draft} <-
+               draft
+               |> MessageDraft.link_contact_and_unapprove_changeset(contact.id)
+               |> Repo.update() do
+          {:ok, %{contact: contact, draft: review_draft}}
+        else
+          {:error, reason} -> Repo.rollback(reason)
+        end
+      end)
+    else
+      nil -> {:error, :missing_thread}
+      error -> error
+    end
+  end
+
+  def create_contact_and_unapprove_draft(_scope, %MessageDraft{}), do: {:error, :not_approved}
+
+  @doc """
   Checks whether an approved draft may be sent to its contact.
   """
   def draft_sendability(scope, %MessageDraft{} = draft, opts \\ []) do
@@ -183,6 +227,21 @@ defmodule Konevo.Messaging do
   end
 
   def reject_draft(_scope, %MessageDraft{}), do: {:error, :not_pending}
+
+  @doc """
+  Rejects all pending or approved drafts in the current organization's review queue.
+  """
+  def reject_all_review_drafts(scope) do
+    with :ok <- Bodyguard.permit(Policy, :update, scope.user, %{org: scope.org}) do
+      {count, _} =
+        scope
+        |> draft_base_query()
+        |> where([draft], draft.status in [:pending, :approved])
+        |> Repo.update_all(set: [status: :rejected, updated_at: DateTime.utc_now(:second)])
+
+      {:ok, count}
+    end
+  end
 
   @doc """
   Returns a changeset for tracking draft changes.
@@ -300,6 +359,18 @@ defmodule Konevo.Messaging do
   defp draft_base_query(%{org: %{id: org_id}}) do
     from(d in MessageDraft, where: d.organization_id == ^org_id)
   end
+
+  defp inbound_sender_email(emails) when is_list(emails) do
+    emails
+    |> Enum.filter(& &1.is_inbound)
+    |> Enum.max_by(& &1.received_at, DateTime, fn -> nil end)
+    |> case do
+      %{from: from} when is_binary(from) and from != "" -> {:ok, from}
+      _ -> {:error, :missing_sender}
+    end
+  end
+
+  defp inbound_sender_email(_emails), do: {:error, :missing_sender}
 
   defp filter_draft_status(query, nil), do: query
 

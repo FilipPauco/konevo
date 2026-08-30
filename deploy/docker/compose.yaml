@@ -21,8 +21,8 @@ services:
       - internal
 
   app:
-    # CI publishes this immutable release image to GHCR. APP_IMAGE is supplied
-    # only by the release deploy service; application secrets stay in .env.
+    # APP_IMAGE selects the immutable release in .env. The automatic deployer
+    # overrides it with the newest published GitHub Release.
     image: "${APP_IMAGE:?Set APP_IMAGE to an immutable GHCR release tag}"
     restart: unless-stopped
     env_file:
@@ -55,6 +55,7 @@ services:
       - "443:443"
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./Caddyfile.common:/etc/caddy/Caddyfile.common:ro
       - caddy_data:/data
       - caddy_config:/config
     networks:

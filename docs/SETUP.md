@@ -4,7 +4,7 @@ Konevo is self-hosted. This guide is for the person operating an instance.
 Before connecting real inboxes, read [Gmail integration](GMAIL.md) and
 [Security](SECURITY.md).
 
-## Requirements
+## Local-development requirements
 
 - Elixir `~> 1.15` and a compatible Erlang/OTP runtime
 - PostgreSQL
@@ -12,9 +12,9 @@ Before connecting real inboxes, read [Gmail integration](GMAIL.md) and
 - ImageMagick for image processing
 - A persistent filesystem location for uploads in production
 
-The supplied [`Dockerfile`](../Dockerfile) installs the runtime dependencies for
-a container release. It does not provide a database, reverse proxy, TLS
-termination, or persistent volumes.
+Production does not need Elixir, Erlang, Node.js, or ImageMagick installed on
+the server. It uses the pre-built container image described in
+[Release deployment](RELEASE_DEPLOYMENT.md).
 
 ## Local development
 
@@ -67,6 +67,9 @@ termination, or persistent volumes.
 | `DATABASE_URL` | Production | PostgreSQL connection URL |
 | `SECRET_KEY_BASE` | Production | Phoenix cookie and token secret; generate with `mix phx.gen.secret` |
 | `PHX_HOST` | Production | Public hostname without scheme or path |
+| `NAMECHEAP_API_KEY` | Namecheap wildcard HTTPS | Namecheap API key; keep only in the production `.env` |
+| `NAMECHEAP_API_USER` | Namecheap wildcard HTTPS | Namecheap account username |
+| `NAMECHEAP_CLIENT_IP` | Namecheap wildcard HTTPS | Public IPv4 address allowlisted in Namecheap API access |
 | `RESEND_API_KEY` | Production | Resend transactional-email API key |
 | `MAILER_FROM_EMAIL` | Production | Sender address on a Resend-verified domain |
 | `MAILER_FROM_NAME` | No | Sender name; defaults to `Konevo` |
@@ -102,34 +105,22 @@ Google OAuth consent screen with the public application home page, privacy
 policy, terms of use, and support email. The full process, scopes, test-mode
 limits, and verification requirements are documented in [GMAIL.md](GMAIL.md).
 
-## Production release
+## Production deployment
 
-Set production environment variables, then build the release:
+Use [Release deployment](RELEASE_DEPLOYMENT.md). It is the supported
+single-server workflow: GitHub publishes an immutable GHCR image after a merge
+to protected `main`, and the server optionally pulls the newest GitHub Release
+itself. Application settings and secrets remain only in `/opt/konevo/app/.env`.
 
-```shell
-MIX_ENV=prod mix assets.deploy
-MIX_ENV=prod mix release
-PHX_SERVER=true _build/prod/rel/konevo/bin/konevo start
-```
-
-Run migrations and seeds before normal traffic:
-
-```shell
-_build/prod/rel/konevo/bin/konevo eval "Konevo.Release.migrate_and_seed()"
-```
-
-Create the owner once the release can reach the production database:
-
-```shell
-_build/prod/rel/konevo/bin/konevo eval "Konevo.Release.create_owner()"
-```
-
-The supplied container command runs migrations and essential seeds. It does not
-create an owner automatically.
+The container runs migrations and essential seeds when it starts. Create the
+first owner explicitly with the command in that guide; it prints the result and
+does not start a second web server.
 
 ## Production checklist
 
 - Serve the app through HTTPS and set `PHX_HOST` to the exact public hostname.
+- To serve arbitrary one-level subdomains, follow the optional Namecheap
+  wildcard deployment in [RELEASE_DEPLOYMENT.md](RELEASE_DEPLOYMENT.md).
 - Use a managed or hardened PostgreSQL deployment with backups and restricted
   network access.
 - Set `UPLOADS_ROOT` to a persistent mounted directory outside the release.
@@ -138,7 +129,7 @@ create an owner automatically.
 - Restrict database, upload-volume, and deployment-secret access to operators.
 - Configure a monitored outbound-email domain in Resend before sending email.
 - Configure the Google OAuth consent screen before connecting Gmail.
-- Run `mix precommit` before upgrading your deployment from source.
+- Back up before every release and verify the app after it deploys.
 
 ## Updates
 

@@ -113,6 +113,23 @@ defmodule Konevo.Automation do
 
   def reject_task_approval(_scope, %TaskApproval{}), do: {:error, :not_pending}
 
+  @doc """
+  Rejects every pending task approval in the current organization's review queue.
+  """
+  def reject_all_task_approvals(scope) do
+    with :ok <- Bodyguard.permit(Policy, :update, scope.user, %{org: scope.org}) do
+      now = DateTime.utc_now(:second)
+
+      {count, _} =
+        TaskApproval
+        |> where(organization_id: ^scope.org.id, status: :pending)
+        |> Repo.update_all(set: [status: :rejected, updated_at: now])
+
+      if count > 0, do: broadcast_approval_queue_changed(scope.org.id)
+      {:ok, count}
+    end
+  end
+
   def change_approval_expiry(scope, attrs \\ %{}) do
     Organization.approval_expiry_changeset(scope.org, attrs)
   end
@@ -421,9 +438,10 @@ defmodule Konevo.Automation do
   @doc """
   Runs every active no-reply follow-up workflow for the scope's organization.
 
-  Each workflow controls its own delay, excluded senders, subject, body, and
-  approval mode. Automatic sends remain subject to the normal consent and
-  suppression checks in `Konevo.Messaging`.
+  Each workflow controls its own delay, excluded senders, subject, and approval
+  mode. Follow-up content is generated from the user's global AI preferences.
+  Automatic sends remain subject to the normal consent and suppression checks in
+  `Konevo.Messaging`.
   """
   def prepare_active_no_reply_follow_ups(scope) do
     with :ok <- Bodyguard.permit(Policy, :create, scope.user, %{org: scope.org}) do
@@ -444,6 +462,7 @@ defmodule Konevo.Automation do
          false <- source_email_work_exists?(scope, email.id) do
       scope
       |> active_inbound_email_task_sequences()
+      |> Enum.filter(&email_received_after_activation?(&1, email))
       |> Enum.map(&run_inbound_email_task_sequence(scope, email, &1))
       |> split_workflow_results()
     else
@@ -574,21 +593,23 @@ defmodule Konevo.Automation do
   end
 
   defp create_follow_up(scope, thread, attrs) do
-    if follow_up_mode(attrs) == "automatic" do
-      create_and_send_follow_up(scope, thread, attrs)
-    else
-      create_follow_up_draft(scope, thread, attrs)
+    with {:ok, %{content: body}} <- AI.generate_no_reply_follow_up_draft(scope, thread) do
+      if follow_up_mode(attrs) == "automatic" do
+        create_and_send_follow_up(scope, thread, attrs, reply_draft_text(body))
+      else
+        create_follow_up_draft(scope, thread, attrs, reply_draft_text(body))
+      end
     end
   end
 
-  defp create_follow_up_draft(scope, thread, attrs) do
+  defp create_follow_up_draft(scope, thread, attrs, body) do
     contact = thread.contact
 
     attrs =
       %{
         message_type: :email,
         subject: Map.get(attrs, "subject", Map.get(attrs, :subject, "Follow-up")),
-        body: follow_up_body(contact, attrs),
+        body: body,
         ai_generated: true,
         tone_preset: :professional,
         contact_id: contact.id,
@@ -598,15 +619,15 @@ defmodule Konevo.Automation do
     Messaging.create_draft(scope, attrs)
   end
 
-  defp create_and_send_follow_up(scope, thread, attrs) do
-    case Repo.transaction(fn -> send_follow_up(scope, thread, attrs) end) do
+  defp create_and_send_follow_up(scope, thread, attrs, body) do
+    case Repo.transaction(fn -> send_follow_up(scope, thread, attrs, body) end) do
       {:ok, draft} -> {:ok, draft}
       {:error, reason} -> {:error, reason}
     end
   end
 
-  defp send_follow_up(scope, thread, attrs) do
-    with {:ok, draft} <- create_follow_up_draft(scope, thread, attrs),
+  defp send_follow_up(scope, thread, attrs, body) do
+    with {:ok, draft} <- create_follow_up_draft(scope, thread, attrs, body),
          {:ok, approved} <- Messaging.approve_draft(scope, draft),
          {:ok, sent} <- Messaging.send_approved_draft(scope, approved, require_consent?: false) do
       sent
@@ -744,12 +765,13 @@ defmodule Konevo.Automation do
   end
 
   defp email_received_after_activation?(
-         %Sequence{activated_at: %DateTime{} = activated_at},
-         %Email{
-           received_at: %DateTime{} = received_at
-         }
+         %Sequence{} = sequence,
+         %Email{received_at: %DateTime{} = received_at}
        ) do
-    DateTime.compare(received_at, activated_at) in [:eq, :gt]
+    case sequence.activated_at || sequence.inserted_at do
+      %DateTime{} = cutoff -> DateTime.compare(received_at, cutoff) in [:eq, :gt]
+      _ -> false
+    end
   end
 
   defp email_received_after_activation?(_sequence, _email), do: false
@@ -791,7 +813,7 @@ defmodule Konevo.Automation do
     rule = Enum.find(sequence.rules, &(&1.action_type == :prepare_task))
     config = if rule, do: rule.action_config || %{}, else: %{}
 
-    with {:ok, result} <- AI.extract_tasks_from_email(scope, email, config) do
+    with {:ok, result} <- AI.extract_tasks_from_email(scope, email) do
       create_email_tasks(scope, email, sequence, config, result)
     end
   end
@@ -1042,16 +1064,6 @@ defmodule Konevo.Automation do
   defp blank?(nil), do: true
   defp blank?(value) when is_binary(value), do: String.trim(value) == ""
   defp blank?(_value), do: false
-
-  defp follow_up_body(contact, attrs) do
-    body = Map.get(attrs, "body", Map.get(attrs, :body))
-
-    if is_binary(body) and String.trim(body) != "" do
-      body
-    else
-      "Hi #{contact.first_name},\n\nJust checking in on my previous email. Happy to help if you have any questions.\n\nBest,"
-    end
-  end
 
   defp split_results(results) do
     {ok, error} =

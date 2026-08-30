@@ -1,8 +1,6 @@
-<p align="center">
-  <img src="priv/static/images/logo-navbar.png" alt="Konevo logo" width="180" />
-</p>
-
-<h1 align="center">Konevo</h1>
+<h1 align="center">
+  <img src="priv/static/images/logo-readme.png" alt="" width="46" align="absmiddle" /> Konevo
+</h1>
 
 <p align="center">
   <strong>Your inbox, organized into meaningful relationships.</strong>
@@ -50,114 +48,25 @@ The public product presentation is available at `/` after starting Konevo.
 
 ## Installation
 
-There are two ways to run Konevo. The pre-built image method is recommended for
-production self-hosting.
+For production, use the immutable GHCR release image and keep all application
+settings and secrets on the server. Do not download individual Compose files
+with `curl` and do not give GitHub a server SSH key. The complete, current guide is
+[Release deployment](docs/RELEASE_DEPLOYMENT.md); it is the same workflow shown
+on the product presentation at `/`.
 
-### Option A — Pre-built images (recommended)
-
-No cloning or building required. Docker pulls a version-pinned Konevo release
-image from GitHub Container Registry (GHCR).
-
-#### Prerequisites
-
-- A Linux server with Docker Engine and Docker Compose v2
-- A public domain with DNS pointing at the server
-- Ports 80 and 443 open in the server firewall and provider firewall
-- Google OAuth and Resend credentials; see [Gmail setup](docs/GMAIL.md)
-
-#### 1. Download the deployment files and default configuration
+You need a Linux server with Docker Engine and Docker Compose v2, a public
+domain pointing to the server, and inbound TCP ports 80 and 443 open. Clone the
+repository once, create `/opt/konevo/app/.env` from `.env.example`, and set
+`APP_IMAGE=ghcr.io/filippauco/konevo:vX.Y.Z` there with an immutable published
+release tag. Then start it with:
 
 ~~~shell
-sudo mkdir -p /opt/konevo/app/deploy/docker
-sudo chown -R "$USER":"$USER" /opt/konevo
-cd /opt/konevo/app
-
-curl -fsSL -o deploy/docker/compose.yaml \
-  https://raw.githubusercontent.com/FilipPauco/konevo/main/deploy/docker/compose.yaml
-curl -fsSL -o deploy/docker/Caddyfile \
-  https://raw.githubusercontent.com/FilipPauco/konevo/main/deploy/docker/Caddyfile
-curl -fsSL -o .env \
-  https://raw.githubusercontent.com/FilipPauco/konevo/main/.env.example
+sudo docker compose --env-file /opt/konevo/app/.env \
+  -f /opt/konevo/app/deploy/docker/compose.yaml up -d
 ~~~
 
-#### 2. Configure the environment
-
-Edit .env, replacing every placeholder. The Docker stack supplies
-DATABASE_URL, PHX_SERVER, and the persistent uploads path automatically.
-
-~~~shell
-nano .env
-~~~
-
-| Variable | Description |
-| --- | --- |
-| PHX_HOST | Public hostname only, for example crm.example.com |
-| SECRET_KEY_BASE | Phoenix session secret; generate with openssl rand -hex 64 |
-| POSTGRES_PASSWORD | Password for the bundled PostgreSQL database; generate with openssl rand -hex 32 |
-| KONEVO_OWNER_EMAIL | Email address of the first private owner account |
-| KONEVO_OWNER_PASSWORD | Long, unique password for that owner account |
-| GOOGLE_CLIENT_ID | Google OAuth Web application client ID |
-| GOOGLE_CLIENT_SECRET | Matching Google OAuth client secret |
-| RESEND_API_KEY | Resend API key for transactional email |
-| MAILER_FROM_EMAIL | Sender address on a Resend-verified domain |
-| MAILER_FROM_NAME | Optional sender name; defaults to Konevo |
-
-Pin the latest published release image:
-
-~~~shell
-KONEVO_VERSION="$(curl -fsSL https://api.github.com/repos/FilipPauco/konevo/releases/latest | grep -m1 '"tag_name"' | cut -d '"' -f4)"
-printf '\nAPP_IMAGE=ghcr.io/filippauco/konevo-crm:%s\n' "$KONEVO_VERSION" >> .env
-~~~
-
-#### 3. Start Konevo
-
-~~~shell
-sudo mkdir -p /opt/konevo/uploads
-docker compose --env-file .env -f deploy/docker/compose.yaml up -d
-~~~
-
-The stack starts Konevo, PostgreSQL, and Caddy. Caddy automatically requests
-and renews a TLS certificate for PHX_HOST.
-
-#### 4. Create the first owner account
-
-Public registration is disabled. After the app has completed startup and
-migrations, create the owner configured in .env:
-
-~~~shell
-docker compose --env-file .env -f deploy/docker/compose.yaml \
-  exec app bin/konevo eval "Konevo.Release.create_owner()"
-~~~
-
-Open https://<PHX_HOST> and sign in with that account.
-
-#### 5. Connect Gmail and AI
-
-Set the Google OAuth redirect URI to:
-
-~~~text
-https://<PHX_HOST>/integrations/gmail/callback
-~~~
-
-Then sign in, open **Settings**, connect Gmail, and add your OpenAI API key in
-**Settings → AI**. The application encrypts the AI key; do not add it to .env.
-
-### Updating
-
-Back up PostgreSQL and /opt/konevo/uploads before updating. Then pin the newest
-release image and restart only the app service:
-
-~~~shell
-KONEVO_VERSION="$(curl -fsSL https://api.github.com/repos/FilipPauco/konevo/releases/latest | grep -m1 '"tag_name"' | cut -d '"' -f4)"
-sed -i "s|^APP_IMAGE=.*|APP_IMAGE=ghcr.io/filippauco/konevo-crm:$KONEVO_VERSION|" .env
-
-docker compose --env-file .env -f deploy/docker/compose.yaml pull app
-docker compose --env-file .env -f deploy/docker/compose.yaml up -d --no-deps app
-~~~
-
-The release runs migrations and essential seeds when the app starts. Review
-release notes and verify login, Gmail sync, background jobs, and uploads after
-each update.
+The guide also covers
+creating the first owner and the optional five-minute server-side update timer.
 
 ## Quick start
 

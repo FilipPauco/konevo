@@ -3,10 +3,12 @@ defmodule KonevoWeb.SettingsLiveTest do
 
   alias Konevo.Accounts
   alias Konevo.AI
+  alias Konevo.Inbox
   alias Konevo.Repo
 
   import Phoenix.LiveViewTest
   import Konevo.AccountsFixtures
+  import Konevo.Factory
   import Konevo.InboxFixtures
 
   describe "mount" do
@@ -18,6 +20,15 @@ defmodule KonevoWeb.SettingsLiveTest do
       {:ok, view, _html} = live(conn, ~p"/settings")
 
       assert has_element?(view, "#settings-tabs")
+      assert has_element?(view, "#settings-tab-mobile-form")
+      assert has_element?(view, "#settings-tab-mobile-select")
+
+      assert has_element?(
+               view,
+               "#settings-tab-mobile-select input[name='settings_tab[tab_text_input]']"
+             )
+
+      assert has_element?(view, "#settings-tab-mobile-select .ls-dropdown li:nth-child(6)")
       assert has_element?(view, "#settings-panel-general")
       assert has_element?(view, "#settings-tab-appearance")
       assert has_element?(view, "#settings-tab-profile")
@@ -92,12 +103,51 @@ defmodule KonevoWeb.SettingsLiveTest do
       refute render(view) =~ "Templates"
     end
 
+    test "replaces the Gmail signature import action after import and allows removal", %{
+      conn: conn,
+      org: org,
+      scope: scope
+    } do
+      integration =
+        integration_fixture(scope, %{
+          provider: :gmail,
+          email_address: "signature@example.com",
+          signature_html: "<p>Regards</p>"
+        })
+
+      {:ok, view, _html} = conn |> org_conn(org) |> live(~p"/settings")
+      open_mail(view)
+
+      assert has_element?(
+               view,
+               "#mail-import-gmail-signature-#{integration.id}",
+               "Re-import Gmail signature"
+             )
+
+      assert has_element?(view, "#mail-remove-gmail-signature-#{integration.id}")
+
+      view
+      |> element("#mail-remove-gmail-signature-#{integration.id}")
+      |> render_click()
+
+      assert Inbox.get_integration!(scope, integration.id).signature_html == nil
+
+      assert has_element?(
+               view,
+               "#mail-import-gmail-signature-#{integration.id}",
+               "Import Gmail signature"
+             )
+
+      refute has_element?(view, "#mail-remove-gmail-signature-#{integration.id}")
+    end
+
     test "shows a configuration warning when Gmail is not connected", %{conn: conn, org: org} do
       {:ok, view, _html} = conn |> org_conn(org) |> live(~p"/settings?tab=mail")
 
       assert has_element?(view, "#mail-configuration-required")
       assert has_element?(view, "#mail-configure-gmail-btn")
       assert has_element?(view, "#gmail-integration-status", "Not connected")
+      assert has_element?(view, "#connect-gmail-btn.btn-primary")
       refute has_element?(view, "#gmail-backfill-empty")
       refute render(view) =~ "Import historical messages and tune mailbox defaults."
     end
@@ -148,6 +198,16 @@ defmodule KonevoWeb.SettingsLiveTest do
       assert has_element?(view, "#settings-panel-general.hidden")
     end
 
+    test "switches tabs from the mobile picker", %{conn: conn, org: org} do
+      {:ok, view, _html} = conn |> org_conn(org) |> live(~p"/settings")
+
+      view
+      |> render_hook("switch_tab", %{"settings_tab" => %{"tab" => "mail"}})
+
+      assert_patch(view, ~p"/settings?tab=mail")
+      assert has_element?(view, "#settings-panel-mail:not(.hidden)")
+    end
+
     test "renders two-factor setup in Profile settings", %{conn: conn, org: org} do
       {:ok, view, _html} = conn |> org_conn(org) |> live(~p"/settings")
 
@@ -192,6 +252,9 @@ defmodule KonevoWeb.SettingsLiveTest do
       assert has_element?(view, "#settings-panel-ai:not(.hidden)")
       assert has_element?(view, "#settings-ai-preferences-form")
       assert has_element?(view, "#settings-ai-preferences-submit")
+      assert has_element?(view, "#settings-ai-tone-select input.h-10.cursor-pointer")
+      assert has_element?(view, "#settings-ai-language-select input.h-10.cursor-pointer")
+      assert has_element?(view, "#settings-ai-response-length-select input.h-10.cursor-pointer")
     end
 
     test "hides the profile identity form while keeping account settings", %{conn: conn, org: org} do
@@ -279,7 +342,7 @@ defmodule KonevoWeb.SettingsLiveTest do
       assert get_session(new_password_conn, :user_token) != get_session(conn, :user_token)
 
       assert Phoenix.Flash.get(new_password_conn.assigns.flash, :success) =~
-               "Password updated successfully"
+               "Password updated"
 
       assert Accounts.get_user_by_email_and_password(user.email, new_password)
     end
@@ -316,22 +379,20 @@ defmodule KonevoWeb.SettingsLiveTest do
         view
         |> form("#settings-ai-preferences-form", %{
           "preference" => %{
-            "tone" => "warm",
-            "language" => "Slovak",
-            "response_length" => "detailed",
-            "custom_instruction" => "Use simple language.",
             "workspace_context" => "This inbox is for Company XYZ business inquiries.",
-            "email_instructions" => "Keep replies short and ask one clear question."
+            "email_instructions" => "Keep replies short and ask one clear question.",
+            "task_instructions" => "Create only explicit, unfinished tasks."
           }
         })
         |> render_submit()
 
       assert result =~ "AI response preferences updated"
       assert {:ok, preference} = AI.get_preference(scope)
-      assert preference.tone == "warm"
-      assert preference.language == "Slovak"
+      assert preference.tone == "professional"
+      assert preference.language == "auto"
       assert preference.workspace_context == "This inbox is for Company XYZ business inquiries."
       assert preference.email_instructions == "Keep replies short and ask one clear question."
+      assert preference.task_instructions == "Create only explicit, unfinished tasks."
     end
 
     test "persists provider keys", %{conn: conn, org: org, scope: scope} do
@@ -368,12 +429,51 @@ defmodule KonevoWeb.SettingsLiveTest do
 
       open_ai(view)
 
-      assert has_element?(view, "#preference_language option[value='auto']")
+      assert has_element?(view, "#settings-ai-language-select input.h-10.cursor-pointer")
+      assert has_element?(view, "#settings-ai-general-heading")
+      assert has_element?(view, "#settings-ai-email-heading")
+      assert has_element?(view, "#settings-ai-task-heading")
       assert has_element?(view, "#settings-ai-provider-openai_responses-form")
       assert has_element?(view, "#settings-ai-usage-openai_responses")
       assert has_element?(view, "#settings-ai-model-usage")
       assert has_element?(view, "input[type='hidden']#settings-ai-budget-openai_responses")
       refute render(view) =~ "Monthly budget"
+    end
+
+    test "formats token usage compactly with exact totals on hover", %{
+      conn: conn,
+      org: org,
+      user: user
+    } do
+      insert(:ai_run,
+        organization: org,
+        user: user,
+        provider: "openai_responses",
+        model_used: "gpt-5.6-terra",
+        input_tokens: 10_581,
+        output_tokens: 0
+      )
+
+      insert(:ai_run,
+        organization: org,
+        user: user,
+        provider: "openai_responses",
+        model_used: "gpt-5.6-luna",
+        input_tokens: 1_500_000,
+        output_tokens: 0
+      )
+
+      {:ok, view, _html} = conn |> org_conn(org) |> live(~p"/settings")
+
+      open_ai(view)
+
+      assert has_element?(view, "#settings-ai-model-usage [title='10,581 tokens']", "10K")
+
+      assert has_element?(
+               view,
+               "#settings-ai-model-usage [title='1,510,581 tokens']",
+               "1.5M"
+             )
     end
   end
 

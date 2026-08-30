@@ -30,7 +30,7 @@ defmodule KonevoWeb.DealsLive.IndexTest do
 
     view
     |> element("#deal_contact_id_live_select_component")
-    |> render_hook("option_click", %{idx: "1"})
+    |> render_hook("option_click", %{idx: "0"})
 
     view
     |> form("#deal-form",
@@ -51,6 +51,63 @@ defmodule KonevoWeb.DealsLive.IndexTest do
     assert has_element?(view, "#deal-#{deal.id}")
   end
 
+  test "marks contact as required and does not offer an empty selection", %{conn: conn} do
+    {:ok, view, _html} = live(conn, ~p"/deals/new")
+
+    assert has_element?(view, "#deal_contact_id-label .text-error", "*")
+    refute render(view) =~ "No contact"
+  end
+
+  test "uses a subtle shadow for Kanban stage collapse controls", %{conn: conn, stage: stage} do
+    {:ok, view, _html} = live(conn, ~p"/deals")
+
+    assert has_element?(view, "#stage-collapse-#{stage.id}.shadow-sm")
+    refute has_element?(view, "#stage-collapse-#{stage.id}.shadow-lg")
+  end
+
+  test "renders searchable owner and source pickers", %{conn: conn} do
+    {:ok, view, _html} = live(conn, ~p"/deals/new")
+
+    assert has_element?(view, "#deal_owner_id_live_select_component")
+    assert has_element?(view, "#deal_owner_id_live_select_component input.h-10.cursor-pointer")
+    assert has_element?(view, "#deal_owner_id-select-chevron")
+    assert has_element?(view, "#deal_contact_id_live_select_component input.h-10.cursor-pointer")
+    assert has_element?(view, "#deal_contact_id-select-chevron")
+    assert has_element?(view, "#deal_source_live_select_component")
+    assert has_element?(view, "#deal_source_live_select_component input.h-10[type='text']")
+    assert has_element?(view, "#deal_title.h-10")
+    assert has_element?(view, "#deal_value.h-10")
+    assert has_element?(view, "#deal_currency_live_select_component input.h-10.cursor-pointer")
+    assert has_element?(view, "#deal_currency-select-chevron")
+    assert has_element?(view, "#deal_expected_close_date.h-10")
+  end
+
+  test "keeps the owner email visible after validation", %{conn: conn, scope: scope} do
+    {:ok, view, _html} = live(conn, ~p"/deals/new")
+
+    view
+    |> form("#deal-form", deal: %{owner_id: scope.user.id, title: "Changed"})
+    |> render_change()
+
+    assert has_element?(
+             view,
+             "#deal_owner_id_live_select_component input[type='text'][value='#{scope.user.email}']"
+           )
+  end
+
+  test "keeps the source label visible after validation", %{conn: conn} do
+    {:ok, view, _html} = live(conn, ~p"/deals/new")
+
+    view
+    |> form("#deal-form", deal: %{source: "email", title: "Changed"})
+    |> render_change()
+
+    assert has_element?(
+             view,
+             "#deal_source_live_select_component input[type='text'][value='Email']"
+           )
+  end
+
   test "shows required errors on invalid submit", %{conn: conn, stage: stage} do
     {:ok, view, _html} = live(conn, ~p"/deals/new")
 
@@ -68,6 +125,11 @@ defmodule KonevoWeb.DealsLive.IndexTest do
     {:ok, view, _html} = live(conn, ~p"/deals/new?stage_id=#{stage.id}")
 
     assert has_element?(view, "#stage-opt-#{stage.id}[checked]")
+
+    assert has_element?(
+             view,
+             "label[for='stage-opt-#{stage.id}'] span[class~='border-base-content/40']"
+           )
   end
 
   test "renders search and deal filters", %{conn: conn} do
@@ -183,12 +245,50 @@ defmodule KonevoWeb.DealsLive.IndexTest do
 
     {:ok, view, _html} = live(conn, ~p"/deals/#{deal}/edit")
 
+    assert has_element?(
+             view,
+             "#deal_contact_id_live_select_component input[type='text'][value='Jane Buyer']"
+           )
+
     view
     |> form("#deal-form", deal: %{title: "Updated deal title"})
     |> render_submit()
 
     assert Deals.get_deal!(scope, deal.id).title == "Updated deal title"
     assert_patch(view, ~p"/deals")
+  end
+
+  test "keeps the archived filter while editing a deal", %{
+    conn: conn,
+    contact: contact,
+    scope: scope,
+    stage: stage
+  } do
+    deal =
+      insert(:deal,
+        organization: scope.org,
+        contact: contact,
+        stage: stage,
+        owner: scope.user,
+        created_by: scope.user,
+        title: "Archived deal",
+        value: Decimal.new("5000"),
+        archived_at: DateTime.utc_now()
+      )
+
+    {:ok, view, _html} = live(conn, ~p"/deals?archived=archived")
+
+    view
+    |> element("#deal-#{deal.id} a[href='/deals/#{deal.slug}/edit?archived=archived']")
+    |> render_click()
+
+    assert_patch(view, ~p"/deals/#{deal}/edit?archived=archived")
+
+    view
+    |> form("#deal-form", deal: %{title: "Updated archived deal"})
+    |> render_submit()
+
+    assert_patch(view, ~p"/deals?archived=archived")
   end
 
   test "moves a deal to another Kanban stage", %{
@@ -238,6 +338,10 @@ defmodule KonevoWeb.DealsLive.IndexTest do
       )
 
     {:ok, view, _html} = live(conn, ~p"/deals")
+
+    assert has_element?(view, "#m-deal-#{deal.id} .opacity-100")
+    assert has_element?(view, "#m-deal-#{deal.id} a[aria-label='Edit deal']")
+    assert has_element?(view, "#m-deal-#{deal.id} button[aria-label='Archive deal']")
 
     view
     |> element("#deal-#{deal.id} button[phx-click='archive_deal']")
@@ -337,6 +441,36 @@ defmodule KonevoWeb.DealsLive.IndexTest do
     assert_push_event(view, "date_range:clear", %{})
     assert has_element?(view, "#deal-#{match.id}")
     assert has_element?(view, "#deal-#{miss.id}")
+  end
+
+  test "shows clear filters for a search-only result", %{
+    conn: conn,
+    contact: contact,
+    scope: scope,
+    stage: stage
+  } do
+    match =
+      insert(:deal,
+        organization: scope.org,
+        contact: contact,
+        stage: stage,
+        owner: scope.user,
+        created_by: scope.user,
+        title: "Searchable deal"
+      )
+
+    {:ok, view, _html} = live(conn, ~p"/deals")
+
+    view |> form("#deal-search-form", q: "Searchable") |> render_change()
+
+    assert has_element?(view, "#deal-#{match.id}")
+    assert has_element?(view, "#deals-clear-filters")
+    assert has_element?(view, "#deals-filter-panel #deals-clear-filters")
+    refute has_element?(view, "#deals-toolbar-actions #deals-clear-filters")
+
+    view |> element("#deals-clear-filters") |> render_click()
+
+    refute has_element?(view, "#deals-clear-filters")
   end
 
   defp org_conn(conn, org), do: %{conn | host: "#{org.slug}.localhost"}
