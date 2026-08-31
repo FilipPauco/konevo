@@ -248,7 +248,9 @@ defmodule KonevoWeb.CompaniesLive.Index do
   def handle_event("set_view_mode", %{"mode" => mode}, socket) do
     view_mode = parse_view_mode(mode)
 
-    {:noreply, assign(socket, :view_mode, view_mode)}
+    socket = assign(socket, :view_mode, view_mode)
+
+    {:noreply, load_companies(socket, current_filter_params(socket))}
   end
 
   def handle_event("delete", %{"id" => id}, socket) do
@@ -322,6 +324,13 @@ defmodule KonevoWeb.CompaniesLive.Index do
     if map_size(params) == 0, do: ~p"/companies", else: ~p"/companies?#{params}"
   end
 
+  defp current_filter_params(socket) do
+    case URI.parse(build_url(socket, %{})).query do
+      nil -> %{}
+      query -> URI.decode_query(query)
+    end
+  end
+
   defp edit_path(company, return_to) do
     case URI.parse(return_to).query do
       nil -> ~p"/companies/#{company}/edit/inline"
@@ -379,35 +388,7 @@ defmodule KonevoWeb.CompaniesLive.Index do
 
   @impl true
   def render(assigns) do
-    total_pages = total_pages(assigns.total)
-
-    assigns =
-      assigns
-      |> assign(:total_pages, total_pages)
-      |> assign(
-        :page_from,
-        if(assigns.total > 0, do: (assigns.page - 1) * @per_page + 1, else: 0)
-      )
-      |> assign(:page_to, min(assigns.page * @per_page, assigns.total))
-      |> assign(:page_numbers, page_display(assigns.page, total_pages))
-      |> assign(
-        :filters_active?,
-        assigns.search != "" or assigns.industries_filter != [] or
-          assigns.created_from != "" or assigns.created_to != "" or
-          assigns.archive_filter != :active
-      )
-      |> assign(
-        :filter_controls_active?,
-        assigns.industries_filter != [] or assigns.created_from != "" or
-          assigns.created_to != "" or assigns.archive_filter != :active
-      )
-      |> assign(
-        :filter_controls_count,
-        length(assigns.industries_filter) +
-          if(assigns.created_from != "", do: 1, else: 0) +
-          if(assigns.created_to != "", do: 1, else: 0) +
-          if(assigns.archive_filter != :active, do: 1, else: 0)
-      )
+    assigns = assign_page_and_filter_data(assigns)
 
     ~H"""
     <Layouts.app flash={@flash} current_scope={@current_scope} current_path={@current_path}>
@@ -1129,6 +1110,39 @@ defmodule KonevoWeb.CompaniesLive.Index do
       </.modal>
     </Layouts.app>
     """
+  end
+
+  defp assign_page_and_filter_data(assigns) do
+    total_pages = total_pages(assigns.total)
+
+    assigns
+    |> assign(:total_pages, total_pages)
+    |> assign(:page_from, page_from(assigns))
+    |> assign(:page_to, min(assigns.page * @per_page, assigns.total))
+    |> assign(:page_numbers, page_display(assigns.page, total_pages))
+    |> assign(:filters_active?, filters_active?(assigns))
+    |> assign(:filter_controls_active?, filter_controls_active?(assigns))
+    |> assign(:filter_controls_count, filter_controls_count(assigns))
+  end
+
+  defp page_from(assigns),
+    do: if(assigns.total > 0, do: (assigns.page - 1) * @per_page + 1, else: 0)
+
+  defp filters_active?(assigns) do
+    assigns.search != "" or assigns.industries_filter != [] or assigns.created_from != "" or
+      assigns.created_to != "" or assigns.archive_filter != :active
+  end
+
+  defp filter_controls_active?(assigns) do
+    assigns.industries_filter != [] or assigns.created_from != "" or assigns.created_to != "" or
+      assigns.archive_filter != :active
+  end
+
+  defp filter_controls_count(assigns) do
+    length(assigns.industries_filter) +
+      if(assigns.created_from != "", do: 1, else: 0) +
+      if(assigns.created_to != "", do: 1, else: 0) +
+      if(assigns.archive_filter != :active, do: 1, else: 0)
   end
 
   attr(:sort_by, :atom, required: true)

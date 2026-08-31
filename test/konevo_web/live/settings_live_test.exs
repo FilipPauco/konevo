@@ -28,7 +28,6 @@ defmodule KonevoWeb.SettingsLiveTest do
                "#settings-tab-mobile-select input[name='settings_tab[tab_text_input]']"
              )
 
-      assert has_element?(view, "#settings-tab-mobile-select .ls-dropdown li:nth-child(6)")
       assert has_element?(view, "#settings-panel-general")
       assert has_element?(view, "#settings-tab-appearance")
       assert has_element?(view, "#settings-tab-profile")

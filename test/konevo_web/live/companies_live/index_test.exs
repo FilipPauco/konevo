@@ -48,8 +48,8 @@ defmodule KonevoWeb.CompaniesLive.IndexTest do
     view |> form("#company-search-form", q: "Acme") |> render_change()
     _html = render_async(view)
 
-    assert has_element?(view, "#companies a[href='/companies/#{acme.slug}']")
-    refute has_element?(view, "#companies a[href='/companies/#{northwind.slug}']")
+    assert has_element?(view, "#companies a[href^='/companies/#{acme.slug}']")
+    refute has_element?(view, "#companies a[href^='/companies/#{northwind.slug}']")
     assert has_element?(view, "#companies-clear-filters")
     assert has_element?(view, "#companies-filter-panel #companies-clear-filters")
     assert has_element?(view, "#companies-archive-filter-mobile")
@@ -57,7 +57,7 @@ defmodule KonevoWeb.CompaniesLive.IndexTest do
     view |> element("#companies-clear-filters") |> render_click()
     _html = render_async(view)
 
-    assert has_element?(view, "#companies a[href='/companies/#{northwind.slug}']")
+    assert has_element?(view, "#companies a[href^='/companies/#{northwind.slug}']")
     refute has_element?(view, "#companies-clear-filters")
   end
 
@@ -71,6 +71,7 @@ defmodule KonevoWeb.CompaniesLive.IndexTest do
     {:ok, view, _html} = live(conn, ~p"/companies")
     _html = render_async(view)
     view |> element("#companies-view-cards") |> render_click()
+    _html = render_async(view)
 
     assert has_element?(
              view,
@@ -158,8 +159,8 @@ defmodule KonevoWeb.CompaniesLive.IndexTest do
 
     _html = render_async(view)
 
-    assert has_element?(view, "#companies a[href='/companies/#{software.slug}']")
-    refute has_element?(view, "#companies a[href='/companies/#{finance.slug}']")
+    assert has_element?(view, "#companies a[href^='/companies/#{software.slug}']")
+    refute has_element?(view, "#companies a[href^='/companies/#{finance.slug}']")
   end
 
   test "archives and restores a company from the list", %{conn: conn, scope: scope} do

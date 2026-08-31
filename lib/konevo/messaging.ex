@@ -155,16 +155,7 @@ defmodule Konevo.Messaging do
          %{emails: emails} = thread <- draft.email_thread,
          {:ok, sender_email} <- inbound_sender_email(emails) do
       Repo.transact(fn ->
-        with {:ok, contact} <- Contacts.find_or_create_by_email(scope, sender_email),
-             {:ok, _thread} <- Inbox.link_contact(scope, thread, contact.id),
-             {:ok, review_draft} <-
-               draft
-               |> MessageDraft.link_contact_and_unapprove_changeset(contact.id)
-               |> Repo.update() do
-          {:ok, %{contact: contact, draft: review_draft}}
-        else
-          {:error, reason} -> Repo.rollback(reason)
-        end
+        link_contact_and_unapprove_draft(scope, thread, draft, sender_email)
       end)
     else
       nil -> {:error, :missing_thread}
@@ -173,6 +164,19 @@ defmodule Konevo.Messaging do
   end
 
   def create_contact_and_unapprove_draft(_scope, %MessageDraft{}), do: {:error, :not_approved}
+
+  defp link_contact_and_unapprove_draft(scope, thread, draft, sender_email) do
+    with {:ok, contact} <- Contacts.find_or_create_by_email(scope, sender_email),
+         {:ok, _thread} <- Inbox.link_contact(scope, thread, contact.id),
+         {:ok, review_draft} <-
+           draft
+           |> MessageDraft.link_contact_and_unapprove_changeset(contact.id)
+           |> Repo.update() do
+      {:ok, %{contact: contact, draft: review_draft}}
+    else
+      {:error, reason} -> Repo.rollback(reason)
+    end
+  end
 
   @doc """
   Checks whether an approved draft may be sent to its contact.

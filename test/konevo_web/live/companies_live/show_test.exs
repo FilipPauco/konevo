@@ -200,7 +200,7 @@ defmodule KonevoWeb.CompaniesLive.ShowTest do
     updated = Companies.get_company!(scope, company.id)
 
     assert updated.slug == "renamed-company"
-    assert_patch(view, ~p"/companies/#{updated}")
+    assert_patch(view, ~p"/companies/#{updated}?#{[return_to: "/companies"]}")
     assert render(view) =~ "Renamed Company"
   end
 

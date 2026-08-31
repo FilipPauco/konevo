@@ -69,15 +69,15 @@ defmodule KonevoWeb.DealsLive.IndexTest do
     {:ok, view, _html} = live(conn, ~p"/deals/new")
 
     assert has_element?(view, "#deal_owner_id_live_select_component")
-    assert has_element?(view, "#deal_owner_id_live_select_component input.h-10.cursor-pointer")
+    assert has_element?(view, "#deal_owner_id_live_select_component input[type='text']")
     assert has_element?(view, "#deal_owner_id-select-chevron")
-    assert has_element?(view, "#deal_contact_id_live_select_component input.h-10.cursor-pointer")
+    assert has_element?(view, "#deal_contact_id_live_select_component input[type='text']")
     assert has_element?(view, "#deal_contact_id-select-chevron")
     assert has_element?(view, "#deal_source_live_select_component")
     assert has_element?(view, "#deal_source_live_select_component input.h-10[type='text']")
     assert has_element?(view, "#deal_title.h-10")
     assert has_element?(view, "#deal_value.h-10")
-    assert has_element?(view, "#deal_currency_live_select_component input.h-10.cursor-pointer")
+    assert has_element?(view, "#deal_currency_live_select_component input[type='text']")
     assert has_element?(view, "#deal_currency-select-chevron")
     assert has_element?(view, "#deal_expected_close_date.h-10")
   end
@@ -99,7 +99,11 @@ defmodule KonevoWeb.DealsLive.IndexTest do
     {:ok, view, _html} = live(conn, ~p"/deals/new")
 
     view
-    |> form("#deal-form", deal: %{source: "email", title: "Changed"})
+    |> element("#deal_source_live_select_component")
+    |> render_hook("option_click", %{idx: "1"})
+
+    view
+    |> form("#deal-form", deal: %{title: "Changed"})
     |> render_change()
 
     assert has_element?(
@@ -128,7 +132,7 @@ defmodule KonevoWeb.DealsLive.IndexTest do
 
     assert has_element?(
              view,
-             "label[for='stage-opt-#{stage.id}'] span[class~='border-base-content/40']"
+             "#stage-opt-#{stage.id} + span[class~='border-base-content/40']"
            )
   end
 

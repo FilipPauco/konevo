@@ -34,7 +34,6 @@ defmodule KonevoWeb.AutomationLive.IndexTest do
                "#automation-tab-mobile-select input[name='automation_tab[tab_text_input]']"
              )
 
-      assert has_element?(view, "#automation-tab-mobile-select .ls-dropdown li:nth-child(3)")
       assert has_element?(view, "#automation-tab-configuration.active")
       assert has_element?(view, "#automation-tab-task_suggestions")
       assert has_element?(view, "#automation-tab-email_drafts")

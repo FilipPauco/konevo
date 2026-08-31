@@ -130,7 +130,7 @@ defmodule KonevoWeb.CalendarLive.IndexTest do
         request_id: "range-1"
       })
 
-      assert_patch(view, ~p"/calendar?view=list&date=2026-08-17")
+      assert_patch(view, ~p"/calendar?#{[date: "2026-08-17", view: "list"]}")
 
       task_event_id = "task-#{task.id}"
       deal_action_event_id = "deal-action-#{deal.id}"

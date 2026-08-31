@@ -449,7 +449,7 @@ defmodule KonevoWeb.InboxLive.IndexTest do
       |> render_click()
 
       view
-      |> element("button[phx-click='bulk_action'][phx-value-action='archive']")
+      |> element("#inbox-bulk-archive-desktop")
       |> render_click()
 
       assert Inbox.get_thread!(scope, selected.id).is_archived

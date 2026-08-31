@@ -1966,6 +1966,7 @@ defmodule KonevoWeb.InboxLive.Index do
                 </.action_popover>
                 <.action_popover tip={gettext("Archive selected threads")}>
                   <button
+                    id="inbox-bulk-archive-desktop"
                     type="button"
                     phx-click="bulk_action"
                     phx-value-action="archive"
@@ -2019,6 +2020,7 @@ defmodule KonevoWeb.InboxLive.Index do
                     <.icon name="icon-[tabler--mail]" class="size-4" />
                   </button>
                   <button
+                    id="inbox-bulk-archive-mobile"
                     type="button"
                     phx-click="bulk_action"
                     phx-value-action="archive"

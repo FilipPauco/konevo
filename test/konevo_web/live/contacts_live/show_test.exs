@@ -349,7 +349,7 @@ defmodule KonevoWeb.ContactsLive.ShowTest do
       updated = Contacts.get_contact!(scope, contact.id)
 
       assert updated.slug == "new-name"
-      assert_patch(lv, ~p"/contacts/#{updated}")
+      assert_patch(lv, ~p"/contacts/#{updated}?#{[return_to: "/contacts"]}")
       assert render(lv) =~ "New"
     end
   end

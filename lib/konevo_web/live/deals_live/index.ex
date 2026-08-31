@@ -432,32 +432,7 @@ defmodule KonevoWeb.DealsLive.Index do
 
   @impl true
   def render(assigns) do
-    assigns =
-      assigns
-      |> assign(:all_sources, @all_sources)
-      |> assign(:value_slider_max, @value_slider_max)
-      |> assign(:value_slider_step, @value_slider_step)
-      |> assign(
-        :filters_active?,
-        assigns.search != "" or assigns.stage_ids != [] or assigns.min_value > 0 or
-          assigns.min_probability > 0 or assigns.close_from != "" or assigns.close_to != "" or
-          assigns.sources != [] or assigns.archive_filter != :active
-      )
-      |> assign(
-        :filter_controls_active?,
-        assigns.stage_ids != [] or assigns.min_value > 0 or assigns.min_probability > 0 or
-          assigns.close_from != "" or assigns.close_to != "" or assigns.sources != [] or
-          assigns.archive_filter != :active
-      )
-      |> assign(
-        :filter_controls_count,
-        length(assigns.stage_ids) +
-          if(assigns.min_value > 0, do: 1, else: 0) +
-          if(assigns.min_probability > 0, do: 1, else: 0) +
-          if(assigns.close_from != "", do: 1, else: 0) +
-          if(assigns.close_to != "", do: 1, else: 0) +
-          length(assigns.sources) + if(assigns.archive_filter != :active, do: 1, else: 0)
-      )
+    assigns = assign_filter_data(assigns)
 
     ~H"""
     <Layouts.app flash={@flash} current_scope={@current_scope} current_path={@current_path}>
@@ -1013,6 +988,37 @@ defmodule KonevoWeb.DealsLive.Index do
       </.modal>
     </Layouts.app>
     """
+  end
+
+  defp assign_filter_data(assigns) do
+    assigns
+    |> assign(:all_sources, @all_sources)
+    |> assign(:value_slider_max, @value_slider_max)
+    |> assign(:value_slider_step, @value_slider_step)
+    |> assign(:filters_active?, filters_active?(assigns))
+    |> assign(:filter_controls_active?, filter_controls_active?(assigns))
+    |> assign(:filter_controls_count, filter_controls_count(assigns))
+  end
+
+  defp filters_active?(assigns) do
+    assigns.search != "" or assigns.stage_ids != [] or assigns.min_value > 0 or
+      assigns.min_probability > 0 or assigns.close_from != "" or assigns.close_to != "" or
+      assigns.sources != [] or assigns.archive_filter != :active
+  end
+
+  defp filter_controls_active?(assigns) do
+    assigns.stage_ids != [] or assigns.min_value > 0 or assigns.min_probability > 0 or
+      assigns.close_from != "" or assigns.close_to != "" or assigns.sources != [] or
+      assigns.archive_filter != :active
+  end
+
+  defp filter_controls_count(assigns) do
+    length(assigns.stage_ids) +
+      if(assigns.min_value > 0, do: 1, else: 0) +
+      if(assigns.min_probability > 0, do: 1, else: 0) +
+      if(assigns.close_from != "", do: 1, else: 0) +
+      if(assigns.close_to != "", do: 1, else: 0) +
+      length(assigns.sources) + if(assigns.archive_filter != :active, do: 1, else: 0)
   end
 
   defp collapse_js(stage_id) do

@@ -135,6 +135,8 @@ defmodule KonevoWeb.ContactsLive.IndexTest do
       |> element("button[phx-click='set_view_mode'][phx-value-mode='card']")
       |> render_click()
 
+      _ = render_async(view)
+
       assert has_element?(
                view,
                ~s(#contacts-cards #contact-card-linkedin-#{contact.id}[href="#{linkedin_url}"])
@@ -185,16 +187,16 @@ defmodule KonevoWeb.ContactsLive.IndexTest do
       for status <- ~w(lead prospect customer churned) do
         assert has_element?(
                  lv,
-                 "label[for='status-opt-#{status}'] span[class~='peer-checked:border-primary']"
+                 "#status-opt-#{status} + span[class~='peer-checked:border-primary']"
                )
 
         assert has_element?(
                  lv,
-                 "label[for='status-opt-#{status}'] span[class~='border-base-content/40']"
+                 "#status-opt-#{status} + span[class~='border-base-content/40']"
                )
       end
 
-      assert has_element?(lv, "label[for='status-opt-lead'] span.bg-teal-400")
+      assert has_element?(lv, "#status-opt-lead + span span.bg-teal-400")
     end
 
     test "company options are preloaded when form opens", %{
@@ -326,15 +328,15 @@ defmodule KonevoWeb.ContactsLive.IndexTest do
       lv |> element("form[phx-submit='search']") |> render_submit(%{q: "Alice"})
       _ = render_async(lv)
 
-      assert has_element?(lv, "#contacts a[href='/contacts/#{alice.slug}']")
-      refute has_element?(lv, "#contacts a[href='/contacts/#{bob.slug}']")
+      assert has_element?(lv, "#contacts a[href^='/contacts/#{alice.slug}']")
+      refute has_element?(lv, "#contacts a[href^='/contacts/#{bob.slug}']")
       assert has_element?(lv, "#contacts-filter-panel #contacts-clear-filters")
       assert has_element?(lv, "#contacts-archive-filter-mobile")
 
       lv |> element("#contacts-clear-filters") |> render_click()
       _ = render_async(lv)
 
-      assert has_element?(lv, "#contacts a[href='/contacts/#{bob.slug}']")
+      assert has_element?(lv, "#contacts a[href^='/contacts/#{bob.slug}']")
       refute has_element?(lv, "#contacts-clear-filters")
     end
   end
@@ -353,8 +355,8 @@ defmodule KonevoWeb.ContactsLive.IndexTest do
 
       _ = render_async(view)
 
-      assert has_element?(view, "#contacts a[href='/contacts/#{lead.slug}']")
-      refute has_element?(view, "#contacts a[href='/contacts/#{customer.slug}']")
+      assert has_element?(view, "#contacts a[href^='/contacts/#{lead.slug}']")
+      refute has_element?(view, "#contacts a[href^='/contacts/#{customer.slug}']")
     end
 
     test "archives and restores a contact from the list", %{conn: conn, scope: scope} do

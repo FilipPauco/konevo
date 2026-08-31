@@ -902,42 +902,7 @@ defmodule KonevoWeb.TasksLive.Index do
 
   @impl true
   def render(assigns) do
-    total_pages = total_pages(assigns.total)
-
-    assigns =
-      assigns
-      |> assign(:total_pages, total_pages)
-      |> assign(
-        :page_from,
-        if(assigns.total > 0, do: (assigns.page - 1) * @per_page + 1, else: 0)
-      )
-      |> assign(:page_to, min(assigns.page * @per_page, assigns.total))
-      |> assign(:page_numbers, page_display(assigns.page, total_pages))
-      |> assign(:all_statuses, @all_statuses)
-      |> assign(:all_priorities, @all_priorities)
-      |> assign(
-        :has_active_filters,
-        filter_mode?(
-          assigns.search,
-          assigns.archive_filter,
-          assigns.statuses,
-          assigns.priorities,
-          assigns.due_from,
-          assigns.due_to,
-          assigns.overdue
-        )
-      )
-      |> assign(
-        :filter_controls_active?,
-        assigns.archive_filter != :active or assigns.statuses != [] or assigns.priorities != [] or
-          assigns.due_from != "" or assigns.due_to != "" or assigns.overdue
-      )
-      |> assign(
-        :filter_controls_count,
-        if(assigns.archive_filter != :active, do: 1, else: 0) + length(assigns.statuses) +
-          length(assigns.priorities) + if(assigns.due_from != "", do: 1, else: 0) +
-          if(assigns.due_to != "", do: 1, else: 0) + if(assigns.overdue, do: 1, else: 0)
-      )
+    assigns = assign_page_and_filter_data(assigns)
 
     ~H"""
     <Layouts.app flash={@flash} current_scope={@current_scope} current_path={@current_path}>
@@ -1648,6 +1613,47 @@ defmodule KonevoWeb.TasksLive.Index do
       </div>
     </Layouts.app>
     """
+  end
+
+  defp assign_page_and_filter_data(assigns) do
+    total_pages = total_pages(assigns.total)
+
+    assigns
+    |> assign(:total_pages, total_pages)
+    |> assign(:page_from, page_from(assigns))
+    |> assign(:page_to, min(assigns.page * @per_page, assigns.total))
+    |> assign(:page_numbers, page_display(assigns.page, total_pages))
+    |> assign(:all_statuses, @all_statuses)
+    |> assign(:all_priorities, @all_priorities)
+    |> assign(:has_active_filters, has_active_filters?(assigns))
+    |> assign(:filter_controls_active?, filter_controls_active?(assigns))
+    |> assign(:filter_controls_count, filter_controls_count(assigns))
+  end
+
+  defp page_from(assigns),
+    do: if(assigns.total > 0, do: (assigns.page - 1) * @per_page + 1, else: 0)
+
+  defp has_active_filters?(assigns) do
+    filter_mode?(
+      assigns.search,
+      assigns.archive_filter,
+      assigns.statuses,
+      assigns.priorities,
+      assigns.due_from,
+      assigns.due_to,
+      assigns.overdue
+    )
+  end
+
+  defp filter_controls_active?(assigns) do
+    assigns.archive_filter != :active or assigns.statuses != [] or assigns.priorities != [] or
+      assigns.due_from != "" or assigns.due_to != "" or assigns.overdue
+  end
+
+  defp filter_controls_count(assigns) do
+    if(assigns.archive_filter != :active, do: 1, else: 0) + length(assigns.statuses) +
+      length(assigns.priorities) + if(assigns.due_from != "", do: 1, else: 0) +
+      if(assigns.due_to != "", do: 1, else: 0) + if(assigns.overdue, do: 1, else: 0)
   end
 
   # ---------------------------------------------------------------------------
