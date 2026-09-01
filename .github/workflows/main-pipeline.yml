@@ -106,7 +106,7 @@ jobs:
       # GITHUB_TOKEN is GitHub-provided and short-lived; do not create a
       # repository secret for it. The token is scoped by this job's permissions.
       - name: Log in to GitHub Container Registry
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
@@ -200,7 +200,7 @@ jobs:
       # GITHUB_TOKEN is GitHub-provided and short-lived; no custom secret is
       # required to publish this repository's GHCR package.
       - name: Log in to GitHub Container Registry
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
