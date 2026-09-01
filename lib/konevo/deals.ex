@@ -95,11 +95,7 @@ defmodule Konevo.Deals do
     - `:sort_dir`   – `:asc` | `:desc`
   """
   def list_deals(scope, opts \\ []) do
-    base =
-      from(d in Deal,
-        where: d.organization_id == ^scope.org.id,
-        preload: [:stage, :contact, :owner]
-      )
+    base = deals_base_query(scope)
 
     base
     |> filter_archive(Keyword.get(opts, :archive_filter, :active))
@@ -115,7 +111,58 @@ defmodule Konevo.Deals do
     |> filter_by_sources(Keyword.get(opts, :sources, []))
     |> sort_deals(Keyword.get(opts, :sort_by, :inserted_at), Keyword.get(opts, :sort_dir, :desc))
     |> maybe_limit(Keyword.get(opts, :limit))
+    |> preload([:stage, :contact, :owner])
     |> Repo.all()
+  end
+
+  @doc """
+  Returns a capped, filterable set of deals for each Kanban stage plus totals.
+  """
+  def list_deals_for_kanban(scope, stage_limits, opts \\ []) when is_map(stage_limits) do
+    base =
+      scope
+      |> deals_base_query()
+      |> filter_archive(Keyword.get(opts, :archive_filter, :active))
+      |> search_deals(Keyword.get(opts, :search))
+      |> filter_by_stages(Keyword.get(opts, :stage_ids, []))
+      |> filter_by_min_value(Keyword.get(opts, :min_value))
+      |> filter_by_min_probability(Keyword.get(opts, :min_probability))
+      |> filter_by_close_from(Keyword.get(opts, :close_from))
+      |> filter_by_close_to(Keyword.get(opts, :close_to))
+      |> filter_by_sources(Keyword.get(opts, :sources, []))
+
+    stage_ids = Map.keys(stage_limits)
+
+    stage_counts =
+      base
+      |> filter_by_stages(stage_ids)
+      |> group_by([d], d.stage_id)
+      |> select([d], {d.stage_id, count(d.id)})
+      |> Repo.all()
+      |> Map.new()
+
+    deals_by_stage =
+      Map.new(stage_limits, fn {stage_id, limit} ->
+        deals =
+          base
+          |> filter_by_stage(stage_id)
+          |> sort_deals(:inserted_at, :asc)
+          |> maybe_limit(limit)
+          |> preload([:stage, :contact, :owner])
+          |> Repo.all()
+
+        {stage_id, deals}
+      end)
+
+    total = Repo.aggregate(base, :count, :id)
+    pipeline_total = Repo.one(from d in base, select: sum(d.value)) || Decimal.new(0)
+
+    %{
+      deals_by_stage: deals_by_stage,
+      stage_counts: stage_counts,
+      total: total,
+      pipeline_total: pipeline_total
+    }
   end
 
   @doc """
@@ -348,6 +395,10 @@ defmodule Konevo.Deals do
 
   defp maybe_limit(query, nil), do: query
   defp maybe_limit(query, limit) when is_integer(limit) and limit > 0, do: limit(query, ^limit)
+
+  defp deals_base_query(scope) do
+    from(d in Deal, where: d.organization_id == ^scope.org.id)
+  end
 
   defp filter_by_min_value(query, nil), do: query
   defp filter_by_min_value(query, value), do: from(d in query, where: d.value >= ^value)

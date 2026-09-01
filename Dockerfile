@@ -26,8 +26,9 @@ RUN mix assets.deploy
 RUN mix release
 
 FROM base AS app
-# imagemagick required at runtime for image resize/metadata stripping
-RUN apk add --no-cache ncurses-libs libstdc++ imagemagick
+# imagemagick and libwebp-tools are required for image resize/metadata stripping,
+# including ImageMagick's WebP dwebp delegate.
+RUN apk add --no-cache ncurses-libs libstdc++ imagemagick libwebp-tools
 
 WORKDIR /app
 

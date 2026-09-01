@@ -87,7 +87,12 @@ defmodule KonevoWeb.CompaniesLive.FormComponent do
           />
         </section>
         <div class="flex justify-end gap-3">
-          <.link patch={@patch} class="btn btn-outline">{gettext("Cancel")}</.link>
+          <.link
+            patch={@patch}
+            class="btn btn-outline border-base-content/20 text-base-content/70 hover:border-base-content/30 hover:bg-base-200/70"
+          >
+            {gettext("Cancel")}
+          </.link>
           <.button phx-disable-with={gettext("Saving…")} class="btn btn-primary gap-1.5">
             <.icon name="icon-[tabler--device-floppy]" class="size-4" /> {gettext("Save company")}
           </.button>

@@ -270,7 +270,7 @@ defmodule KonevoWeb.CompaniesLive.Show do
                   data-confirm={
                     gettext("Delete this company? Contacts will be kept without a company.")
                   }
-                  class="btn btn-sm btn-error btn-danger gap-1.5 shadow-sm"
+                  class="btn btn-sm btn-error gap-1.5 shadow-sm"
                 >
                   <.icon name="icon-[tabler--trash]" class="size-3.5" />
                   {gettext("Delete")}

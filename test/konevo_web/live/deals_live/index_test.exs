@@ -185,6 +185,39 @@ defmodule KonevoWeb.DealsLive.IndexTest do
     refute has_element?(view, "#deal-#{miss.id}")
   end
 
+  test "loads additional deals for an individual Kanban stage", %{
+    conn: conn,
+    contact: contact,
+    scope: scope,
+    stage: stage
+  } do
+    deals =
+      for number <- 1..26 do
+        insert(:deal,
+          organization: scope.org,
+          contact: contact,
+          stage: stage,
+          owner: scope.user,
+          created_by: scope.user,
+          title: "Kanban deal #{number}",
+          value: Decimal.new("5000")
+        )
+      end
+
+    last_deal = List.last(deals)
+    {:ok, view, _html} = live(conn, ~p"/deals")
+
+    assert has_element?(view, "#kanban-load-more-#{stage.id}")
+    refute has_element?(view, "#deal-#{last_deal.id}")
+
+    view
+    |> element("#kanban-load-more-#{stage.id}")
+    |> render_click()
+
+    assert has_element?(view, "#deal-#{last_deal.id}")
+    refute has_element?(view, "#kanban-load-more-#{stage.id}")
+  end
+
   test "URL filters narrow the deal board", %{
     conn: conn,
     contact: contact,

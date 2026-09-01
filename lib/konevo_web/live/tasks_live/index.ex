@@ -1374,7 +1374,7 @@ defmodule KonevoWeb.TasksLive.Index do
                               phx-value-id={task.id}
                               disabled={task_status(task) == :done}
                               title={complete_action_title(task)}
-                              class="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm font-medium text-base-content/70 transition-colors hover:bg-success/10 hover:text-success disabled:pointer-events-none disabled:opacity-40"
+                              class="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm font-medium text-base-content/70 transition-colors hover:bg-primary/10 hover:text-primary disabled:pointer-events-none disabled:opacity-40"
                             >
                               <.icon name="icon-[tabler--check]" class="size-3.5" /> {gettext(
                                 "Complete"

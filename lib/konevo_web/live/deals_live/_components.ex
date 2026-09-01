@@ -194,6 +194,7 @@ defmodule KonevoWeb.DealsLive.Components do
   """
   attr :stage, :map, required: true
   attr :deals, :list, required: true
+  attr :total, :integer, required: true
 
   def stage_column_header(assigns) do
     ~H"""
@@ -216,7 +217,7 @@ defmodule KonevoWeb.DealsLive.Components do
           />
           <h2 class="text-sm font-semibold text-base-content truncate">{@stage.name}</h2>
           <span class="badge badge-sm font-semibold" style={stage_count_style(@stage.color)}>
-            {length(@deals)}
+            {@total}
           </span>
         </div>
 
@@ -246,6 +247,7 @@ defmodule KonevoWeb.DealsLive.Components do
   """
   attr :stage, :map, required: true
   attr :deals, :list, required: true
+  attr :total, :integer, required: true
   attr :on_expand, :any, required: true
 
   def stage_column_strip(assigns) do
@@ -276,7 +278,7 @@ defmodule KonevoWeb.DealsLive.Components do
         class="relative z-10 mt-auto badge badge-sm font-semibold"
         style={stage_count_style(@stage.color)}
       >
-        {length(@deals)}
+        {@total}
       </span>
     </div>
     """

@@ -359,7 +359,10 @@ defmodule KonevoWeb.HomeLive do
         <div class="min-w-0">
           <div class="flex flex-wrap items-center gap-2">
             <h3 class="truncate font-semibold text-base-content">{@item.title}</h3>
-            <span :if={money_positive?(@item.amount)} class="badge badge-sm badge-success">
+            <span
+              :if={money_positive?(@item.amount)}
+              class="badge badge-sm border border-primary/30 bg-primary/10 text-primary"
+            >
               {format_money(@item.amount)}
             </span>
           </div>

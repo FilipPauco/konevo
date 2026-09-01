@@ -745,18 +745,6 @@ defmodule KonevoWeb.CompaniesLive.Index do
                         >
                           {company.name}
                         </.link>
-                        <a
-                          :if={linkedin_url}
-                          id={"company-card-linkedin-#{company.id}"}
-                          href={linkedin_url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          title={gettext("LinkedIn")}
-                          aria-label={gettext("Open LinkedIn company page")}
-                          class="flex size-6 shrink-0 items-center justify-center rounded-md text-[#0A66C2] opacity-85 transition-all hover:bg-[#0A66C2]/10 hover:opacity-100"
-                        >
-                          <.icon name="icon-[tabler--brand-linkedin]" class="size-4" />
-                        </a>
                         <div
                           id={"company-card-menu-#{id}"}
                           phx-hook="RowMenu"
@@ -838,6 +826,19 @@ defmodule KonevoWeb.CompaniesLive.Index do
 
                   <%!-- Details --%>
                   <div class="flex-1 space-y-2 text-sm">
+                    <a
+                      :if={linkedin_url}
+                      id={"company-card-linkedin-#{company.id}"}
+                      href={linkedin_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      title={gettext("LinkedIn")}
+                      aria-label={gettext("Open LinkedIn company page")}
+                      class="flex min-w-0 items-center gap-2 rounded-md text-xs font-medium text-primary transition-colors hover:bg-primary/5 hover:underline"
+                    >
+                      <.icon name="icon-[tabler--brand-linkedin]" class="size-3.5 shrink-0" />
+                      <span>{gettext("LinkedIn")}</span>
+                    </a>
                     <div :if={company.website} class="flex items-center gap-2 text-base-content/60">
                       <span class="icon-[tabler--world] size-3.5 shrink-0 text-base-content/30" />
                       <a

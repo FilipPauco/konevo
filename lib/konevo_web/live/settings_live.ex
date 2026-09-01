@@ -1719,7 +1719,7 @@ defmodule KonevoWeb.SettingsLive do
             phx-click="clear_gmail_signature"
             phx-value-id={@integration.id}
             data-confirm={gettext("Remove the imported Gmail signature?")}
-            class="btn btn-sm btn-error btn-danger gap-1.5 shadow-sm"
+            class="btn btn-sm btn-error gap-1.5 shadow-sm"
           >
             <.icon name="icon-[tabler--trash]" class="size-3.5" />
             {gettext("Remove")}
@@ -1770,7 +1770,7 @@ defmodule KonevoWeb.SettingsLive do
             <button
               id="settings-automation-review-cleanup-submit"
               type="submit"
-              class="btn btn-primary gap-1.5 sm:mb-0.5"
+              class="btn btn-primary gap-1.5 sm:mb-2"
             >
               <.icon name="icon-[tabler--device-floppy]" class="size-4" />
               {gettext("Save")}

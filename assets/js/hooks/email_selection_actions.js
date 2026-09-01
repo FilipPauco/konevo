@@ -81,8 +81,8 @@ const EmailSelectionActions = {
 
     root.dataset.theme = "corporate"
     root.style.setProperty("color-scheme", "light")
-    root.style.setProperty("--email-background", "#fffaf3")
-    root.style.setProperty("--email-foreground", "#332c25")
+    root.style.setProperty("--email-background", "#f8fafc")
+    root.style.setProperty("--email-foreground", "#1e293b")
     root.style.setProperty("--email-link", "#2563eb")
   },
 

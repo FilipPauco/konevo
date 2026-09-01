@@ -894,14 +894,11 @@ defmodule KonevoWeb.ContactsLive.Index do
               <div
                 :for={{id, contact} <- @streams.contacts}
                 id={id}
-                class={[
-                  "group relative flex flex-col overflow-hidden rounded-2xl border border-base-content/10 bg-base-100 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md",
-                  status_card_hover_class(contact.status)
-                ]}
+                class="group relative flex flex-col overflow-hidden rounded-2xl border border-base-content/10 bg-base-100 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-md"
               >
                 <% linkedin_url = filled_url(contact.linkedin_url) %>
                 <%!-- Card top accent --%>
-                <div class={["h-2 w-full", status_card_accent(contact.status)]} />
+                <div class="h-1 w-full bg-gradient-to-r from-primary/60 to-primary/20" />
 
                 <%!-- Card body --%>
                 <div class="flex flex-1 flex-col gap-4 p-5">
@@ -915,10 +912,7 @@ defmodule KonevoWeb.ContactsLive.Index do
                           class="size-12 rounded-full bg-base-200 object-cover ring-2 ring-base-content/8"
                         />
                       <% else %>
-                        <div class={[
-                          "flex size-12 items-center justify-center rounded-full text-sm font-bold",
-                          status_avatar_class(contact.status)
-                        ]}>
+                        <div class="flex size-12 items-center justify-center rounded-full bg-primary/10 text-sm font-bold text-primary">
                           {contact_initials(contact)}
                         </div>
                       <% end %>
@@ -927,26 +921,10 @@ defmodule KonevoWeb.ContactsLive.Index do
                       <div class="flex items-center gap-1">
                         <.link
                           navigate={show_path(contact, @return_to)}
-                          class={[
-                            "min-w-0 flex-1 truncate text-sm font-semibold text-base-content underline-offset-2 transition-colors group-hover:underline",
-                            status_card_title_hover_class(contact.status)
-                          ]}
+                          class="min-w-0 flex-1 truncate text-sm font-semibold text-base-content decoration-primary/50 underline-offset-2 transition-colors group-hover:text-primary group-hover:underline"
                         >
                           {"#{contact.first_name} #{contact.last_name}" |> String.trim()}
                         </.link>
-                        <%!-- LinkedIn icon --%>
-                        <a
-                          :if={linkedin_url}
-                          id={"contact-card-linkedin-#{contact.id}"}
-                          href={linkedin_url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          title={gettext("LinkedIn")}
-                          aria-label={gettext("Open LinkedIn profile")}
-                          class="flex size-6 shrink-0 items-center justify-center rounded-md text-[#0A66C2] opacity-85 transition-all hover:bg-[#0A66C2]/10 hover:opacity-100"
-                        >
-                          <.icon name="icon-[tabler--brand-linkedin]" class="size-4" />
-                        </a>
                         <%!-- Dots menu --%>
                         <div
                           id={"contact-card-menu-#{id}"}
@@ -1022,6 +1000,19 @@ defmodule KonevoWeb.ContactsLive.Index do
 
                   <%!-- Details --%>
                   <div class="space-y-2">
+                    <a
+                      :if={linkedin_url}
+                      id={"contact-card-linkedin-#{contact.id}"}
+                      href={linkedin_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      title={gettext("LinkedIn")}
+                      aria-label={gettext("Open LinkedIn profile")}
+                      class="flex min-w-0 items-center gap-2 rounded-md text-xs font-medium text-primary transition-colors hover:bg-primary/5 hover:underline"
+                    >
+                      <.icon name="icon-[tabler--brand-linkedin]" class="size-3.5 shrink-0" />
+                      <span>{gettext("LinkedIn")}</span>
+                    </a>
                     <div
                       :if={contact.email}
                       class="flex min-w-0 items-center gap-2 text-xs text-base-content/60"
@@ -1412,33 +1403,4 @@ defmodule KonevoWeb.ContactsLive.Index do
   end
 
   defp filled_url(_value), do: nil
-
-  defp status_avatar_class(:lead), do: "bg-teal-400/15 text-teal-700 dark:text-teal-300"
-  defp status_avatar_class(:prospect), do: "bg-amber-500/15 text-amber-600"
-  defp status_avatar_class(:customer), do: "bg-success/15 text-success"
-  defp status_avatar_class(:churned), do: "bg-error/15 text-error"
-  defp status_avatar_class(_), do: "bg-primary/10 text-primary"
-
-  defp status_card_accent(:lead), do: "bg-gradient-to-r from-teal-400/60 to-teal-400/20"
-  defp status_card_accent(:prospect), do: "bg-gradient-to-r from-amber-500/60 to-amber-500/20"
-  defp status_card_accent(:customer), do: "bg-gradient-to-r from-success/60 to-success/20"
-  defp status_card_accent(:churned), do: "bg-gradient-to-r from-error/60 to-error/20"
-  defp status_card_accent(_), do: "bg-gradient-to-r from-base-content/20 to-base-content/5"
-
-  defp status_card_hover_class(:lead), do: "hover:border-teal-400/35 hover:shadow-teal-400/10"
-
-  defp status_card_hover_class(:prospect),
-    do: "hover:border-amber-500/35 hover:shadow-amber-500/10"
-
-  defp status_card_hover_class(:customer), do: "hover:border-success/35 hover:shadow-success/10"
-  defp status_card_hover_class(:churned), do: "hover:border-error/35 hover:shadow-error/10"
-  defp status_card_hover_class(_), do: "hover:border-base-content/20 hover:shadow-base-content/8"
-
-  defp status_card_title_hover_class(:lead),
-    do: "group-hover:text-teal-700 dark:group-hover:text-teal-300"
-
-  defp status_card_title_hover_class(:prospect), do: "group-hover:text-amber-700"
-  defp status_card_title_hover_class(:customer), do: "group-hover:text-success"
-  defp status_card_title_hover_class(:churned), do: "group-hover:text-error"
-  defp status_card_title_hover_class(_), do: "group-hover:text-base-content"
 end

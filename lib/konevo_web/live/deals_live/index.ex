@@ -8,12 +8,14 @@ defmodule KonevoWeb.DealsLive.Index do
   @all_sources ~w(email form referral import manual api)
   @value_slider_max 100_000
   @value_slider_step 1_000
+  @deals_per_stage 25
 
   @impl true
   def mount(_params, _session, socket) do
     {:ok,
      socket
      |> assign(:page_title, gettext("Deals"))
+     |> assign(:deals_per_stage, @deals_per_stage)
      |> assign(:search, "")
      |> assign(:archive_filter, :active)
      |> assign(:stage_ids, [])
@@ -24,6 +26,8 @@ defmodule KonevoWeb.DealsLive.Index do
      |> assign(:sources, [])
      |> assign(:stages, [])
      |> assign(:stages_with_deals, [])
+     |> assign(:stage_deal_counts, %{})
+     |> assign(:stage_deal_limits, %{})
      |> assign(:deal, nil)
      |> assign(:pipeline_total, Decimal.new(0))
      |> assign(:pipeline_count, 0)
@@ -188,6 +192,23 @@ defmodule KonevoWeb.DealsLive.Index do
     end
   end
 
+  def handle_event("load_more_deals", %{"stage_id" => stage_id}, socket) do
+    with {stage_id, ""} <- Integer.parse(stage_id),
+         true <- Enum.any?(socket.assigns.stages, &(&1.id == stage_id)) do
+      limits =
+        Map.update(
+          socket.assigns.stage_deal_limits,
+          stage_id,
+          @deals_per_stage * 2,
+          &(&1 + @deals_per_stage)
+        )
+
+      {:noreply, socket |> assign(:stage_deal_limits, limits) |> load_board(reset_limits?: false)}
+    else
+      _ -> {:noreply, socket}
+    end
+  end
+
   @impl true
   def handle_event("delete_deal", %{"id" => id_str}, socket) do
     scope = socket.assigns.current_scope
@@ -327,12 +348,25 @@ defmodule KonevoWeb.DealsLive.Index do
     {:noreply, socket}
   end
 
-  defp load_board(socket) do
+  defp load_board(socket, opts \\ []) do
     scope = socket.assigns.current_scope
     stages = Deals.list_stages(scope)
+    visible_stages = visible_stages(stages, socket.assigns.stage_ids)
 
-    deals =
-      Deals.list_deals(scope,
+    reset_limits? = Keyword.get(opts, :reset_limits?, true)
+
+    stage_limits =
+      Map.new(visible_stages, fn stage ->
+        limit =
+          if reset_limits?,
+            do: @deals_per_stage,
+            else: Map.get(socket.assigns.stage_deal_limits, stage.id, @deals_per_stage)
+
+        {stage.id, limit}
+      end)
+
+    board =
+      Deals.list_deals_for_kanban(scope, stage_limits,
         search: socket.assigns.search,
         archive_filter: socket.assigns.archive_filter,
         stage_ids: socket.assigns.stage_ids,
@@ -340,35 +374,37 @@ defmodule KonevoWeb.DealsLive.Index do
         min_probability: min_probability_filter(socket.assigns.min_probability),
         close_from: date_filter(socket.assigns.close_from),
         close_to: date_filter(socket.assigns.close_to),
-        sources: socket.assigns.sources,
-        sort_by: :inserted_at,
-        sort_dir: :asc
+        sources: socket.assigns.sources
       )
-
-    deals_by_stage = Enum.group_by(deals, & &1.stage_id)
-    visible_stages = visible_stages(stages, socket.assigns.stage_ids)
 
     stages_with_deals =
       Enum.map(visible_stages, fn stage ->
-        {stage, Map.get(deals_by_stage, stage.id, [])}
-      end)
-
-    pipeline_total =
-      Enum.reduce(deals, Decimal.new(0), fn deal, acc ->
-        if deal.value, do: Decimal.add(acc, deal.value), else: acc
+        {stage, Map.get(board.deals_by_stage, stage.id, [])}
       end)
 
     socket
     |> assign(:stages, stages)
     |> assign(:stages_with_deals, stages_with_deals)
-    |> assign(:pipeline_count, length(deals))
-    |> assign(:pipeline_total, pipeline_total)
+    |> assign(:stage_deal_counts, board.stage_counts)
+    |> assign(:stage_deal_limits, stage_limits)
+    |> assign(:pipeline_count, board.total)
+    |> assign(:pipeline_total, board.pipeline_total)
   end
 
   defp visible_stages(stages, []), do: stages
 
   defp visible_stages(stages, stage_ids) do
     Enum.filter(stages, &(&1.id in stage_ids))
+  end
+
+  defp stage_deal_count(stage_deal_counts, stage_id), do: Map.get(stage_deal_counts, stage_id, 0)
+
+  defp stage_remaining_count(stage_deal_counts, stage_id, deals) do
+    max(stage_deal_count(stage_deal_counts, stage_id) - length(deals), 0)
+  end
+
+  defp stage_has_more?(stage_deal_counts, stage_id, deals) do
+    stage_remaining_count(stage_deal_counts, stage_id, deals) > 0
   end
 
   defp min_value_filter(value) when is_integer(value) and value > 0, do: Decimal.new(value)
@@ -789,7 +825,7 @@ defmodule KonevoWeb.DealsLive.Index do
             </span>
             <span
               :if={!Decimal.equal?(@pipeline_total, 0)}
-              class="badge badge-sm border border-success/30 bg-success/10 text-success font-semibold"
+              class="badge badge-sm border border-primary/30 bg-primary/10 text-primary font-semibold"
             >
               {format_pipeline_total(@pipeline_total)}
             </span>
@@ -845,7 +881,7 @@ defmodule KonevoWeb.DealsLive.Index do
                         class="badge badge-sm font-semibold"
                         style={stage_count_style(stage.color)}
                       >
-                        {length(deals)}
+                        {stage_deal_count(@stage_deal_counts, stage.id)}
                       </span>
                     </div>
                     <span
@@ -870,6 +906,22 @@ defmodule KonevoWeb.DealsLive.Index do
                         return_to={@return_to}
                       />
                     <% end %>
+                    <button
+                      :if={stage_has_more?(@stage_deal_counts, stage.id, deals)}
+                      id={"mobile-kanban-load-more-#{stage.id}"}
+                      type="button"
+                      phx-click="load_more_deals"
+                      phx-value-stage_id={stage.id}
+                      class="w-full rounded-md border border-primary/20 bg-primary/5 px-3 py-2 text-xs font-semibold text-primary transition-colors hover:bg-primary/10"
+                    >
+                      {gettext("Load %{count} more",
+                        count:
+                          min(
+                            @deals_per_stage,
+                            stage_remaining_count(@stage_deal_counts, stage.id, deals)
+                          )
+                      )}
+                    </button>
                   </div>
                 </div>
               <% end %>
@@ -908,7 +960,11 @@ defmodule KonevoWeb.DealsLive.Index do
                       id={"kc-full-#{stage.id}"}
                       class="kc-panel relative flex flex-col w-60 h-full rounded-xl border border-base-content/20 shadow-sm bg-base-100"
                     >
-                      <Components.stage_column_header stage={stage} deals={deals} />
+                      <Components.stage_column_header
+                        stage={stage}
+                        deals={deals}
+                        total={stage_deal_count(@stage_deal_counts, stage.id)}
+                      />
                       <div
                         id={"kanban-col-#{stage.id}"}
                         phx-hook="SortableKanban"
@@ -934,6 +990,22 @@ defmodule KonevoWeb.DealsLive.Index do
                             return_to={@return_to}
                           />
                         <% end %>
+                        <button
+                          :if={stage_has_more?(@stage_deal_counts, stage.id, deals)}
+                          id={"kanban-load-more-#{stage.id}"}
+                          type="button"
+                          phx-click="load_more_deals"
+                          phx-value-stage_id={stage.id}
+                          class="relative z-10 w-full rounded-md border border-primary/20 bg-primary/5 px-3 py-2 text-xs font-semibold text-primary transition-colors hover:bg-primary/10"
+                        >
+                          {gettext("Load %{count} more",
+                            count:
+                              min(
+                                @deals_per_stage,
+                                stage_remaining_count(@stage_deal_counts, stage.id, deals)
+                              )
+                          )}
+                        </button>
                       </div>
                     </div>
                     <button
@@ -958,6 +1030,7 @@ defmodule KonevoWeb.DealsLive.Index do
                       <Components.stage_column_strip
                         stage={stage}
                         deals={deals}
+                        total={stage_deal_count(@stage_deal_counts, stage.id)}
                         on_expand={expand_js(stage.id)}
                       />
                     </div>

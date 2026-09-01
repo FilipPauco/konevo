@@ -362,7 +362,7 @@ defmodule KonevoWeb.ContactsLive.Show do
                   type="button"
                   phx-click="delete"
                   data-confirm={gettext("Delete this contact? This cannot be undone.")}
-                  class="btn btn-sm btn-error btn-danger gap-1.5 shadow-sm"
+                  class="btn btn-sm btn-error gap-1.5 shadow-sm"
                 >
                   <.icon name="icon-[tabler--trash]" class="size-3.5" />
                   {gettext("Delete")}

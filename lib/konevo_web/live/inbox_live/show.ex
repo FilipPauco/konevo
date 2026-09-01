@@ -1604,8 +1604,8 @@ defmodule KonevoWeb.InboxLive.Show do
       <style>
         :root {
           color-scheme: light;
-          --email-background: #fffaf3;
-          --email-foreground: #332c25;
+          --email-background: #f8fafc;
+          --email-foreground: #1e293b;
           --email-link: #2563eb;
         }
         * { box-sizing: border-box; }
