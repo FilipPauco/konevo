@@ -80,6 +80,18 @@ the server. It uses the pre-built container image described in
 | `DNS_CLUSTER_QUERY` | No | DNS query for distributed Erlang clustering |
 | `PHX_SERVER` | Release start | Set to `true` to start the Phoenix endpoint |
 
+## Self-hosted legal responsibilities
+
+The built-in Privacy Policy and Terms describe the public Konevo website and
+the Konevo software. They are not the privacy policy or terms for an operator's
+separate self-hosted service.
+
+Before exposing a self-hosted instance to users, its operator must provide and
+maintain its own privacy policy, terms, support contact, and Google OAuth
+consent-screen details. Those materials must accurately describe the operator's
+hosting, data processing, integrations, and services, and should receive
+operator-specific legal review.
+
 ## AI setup
 
 Konevo uses one OpenAI API key, configured in **Settings → AI** for the
@@ -101,16 +113,18 @@ match exactly:
 - Production: `https://<PHX_HOST>/integrations/gmail/callback`
 
 Enable the Gmail API and Google Calendar API for the project. Configure the
-Google OAuth consent screen with the public application home page, privacy
-policy, terms of use, and support email. The full process, scopes, test-mode
-limits, and verification requirements are documented in [GMAIL.md](GMAIL.md).
+Google OAuth consent screen with the public application home page, the
+operator's privacy-policy URL, terms URL, and support email. These must belong
+to the operator of this instance. The full process, scopes, test-mode limits,
+and verification requirements are documented in [GMAIL.md](GMAIL.md).
 
 ## Production deployment
 
 Use [Release deployment](RELEASE_DEPLOYMENT.md). It is the supported
 single-server workflow: GitHub publishes an immutable GHCR image after a merge
-to protected `main`, and the server optionally pulls the newest GitHub Release
-itself. Application settings and secrets remain only in `/opt/konevo/app/.env`.
+of an application change to protected `main`, and the server optionally pulls
+the newest GitHub Release itself. Documentation-only changes do not publish a
+release. Application settings and secrets remain only in `/opt/konevo/app/.env`.
 
 The container runs migrations and essential seeds when it starts. Create the
 first owner explicitly with the command in that guide; it prints the result and
@@ -128,7 +142,11 @@ does not start a second web server.
   the instance.
 - Restrict database, upload-volume, and deployment-secret access to operators.
 - Configure a monitored outbound-email domain in Resend before sending email.
+- Publish and verify the operator's privacy policy, terms, support contact, and
+  Google OAuth consent-screen details before inviting users.
 - Configure the Google OAuth consent screen before connecting Gmail.
+- Confirm `https://<PHX_HOST>/health` returns `{"status":"ok"}` after each
+  deployment; it verifies the public Phoenix endpoint through Caddy.
 - Back up before every release and verify the app after it deploys.
 
 ## Updates

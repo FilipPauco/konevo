@@ -2,8 +2,6 @@
    https://tailwindcss.com/docs/configuration */
 
 @import "tailwindcss" source(none);
-@import "apexcharts/dist/apexcharts.css";
-@import "flyonui/src/vendor/apexcharts.css";
 @import "flyonui/src/vendor/flatpickr.css";
 @import "flatpickr/dist/flatpickr.css";
 @import "flatpickr/dist/plugins/monthSelect/style.css";

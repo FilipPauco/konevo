@@ -5,8 +5,8 @@ public immutable image, and the server polls GitHub over HTTPS for a published
 release. GitHub never receives a production SSH key, webhook secret, or .env.
 
 ~~~text
-Approved pull request -> protected main -> GitHub CI -> GHCR image + GitHub Release
-                                                   -> server systemd timer -> Docker Compose
+Approved application pull request -> protected main -> GitHub CI -> GHCR image + GitHub Release
+                                                               -> server systemd timer -> Docker Compose
 ~~~
 
 The supplied deployment files live in deploy/docker:
@@ -40,13 +40,17 @@ defined in the workflow.
 
 ## 3. CI behavior
 
-On a push to protected main, the release workflow:
+On an application-affecting push to protected `main`, the release workflow:
 
 1. verifies formatting, compilation, tests, and Credo;
 2. builds an image tagged with the immutable commit SHA;
 3. creates a vX.Y.Z Git tag;
 4. tags that image as vX.Y.Z; and
 5. creates the GitHub Release.
+
+Documentation-only pushes (Markdown files and `.github/CODEOWNERS`) do not run
+the release workflow, so they do not create an image, version, release, or
+deployment. The pull-request CI gate still runs before those changes merge.
 
 The deployer watches GitHub Releases, not raw branch commits or mutable latest
 tags. The workflow does not SSH to the production server.
@@ -82,7 +86,9 @@ sudoedit /opt/konevo/app/.env
 ~~~
 
 Set every placeholder, including `APP_IMAGE`, `PHX_HOST`, `SECRET_KEY_BASE`,
-`POSTGRES_PASSWORD`, the initial owner, Gmail OAuth, and email values.
+`POSTGRES_PASSWORD`, the initial owner, Gmail OAuth, and email values. Before
+exposing the instance to users or configuring Google OAuth, publish the
+operator's own privacy policy, terms, and support contact.
 `APP_IMAGE` must be the immutable release to run, for example
 `ghcr.io/filippauco/konevo:vX.Y.Z`. The Compose file supplies the database URL,
 endpoint start flag, and persistent upload path.
@@ -117,7 +123,13 @@ After GitHub has published a release and its GHCR package is public, set
 
 ~~~shell
 sudo docker compose --env-file /opt/konevo/app/.env \
-  -f /opt/konevo/app/deploy/docker/compose.yaml up -d
+  -f /opt/konevo/app/deploy/docker/compose.yaml up -d --wait
+~~~
+
+Then confirm the public endpoint through Caddy:
+
+~~~shell
+curl --fail --show-error https://<PHX_HOST>/health
 ~~~
 
 The stack starts PostgreSQL, Konevo, and Caddy. Caddy requests and renews the
@@ -149,7 +161,7 @@ both `PHX_HOST` and `*.PHX_HOST`:
 ~~~shell
 sudo docker compose --env-file /opt/konevo/app/.env \
   -f /opt/konevo/app/deploy/docker/compose.yaml \
-  -f /opt/konevo/app/deploy/docker/compose.namecheap-wildcard.yaml up -d --build
+  -f /opt/konevo/app/deploy/docker/compose.namecheap-wildcard.yaml up -d --build --wait
 ~~~
 
 This covers `tenant.konevo.net`, but not nested names such as
@@ -186,13 +198,18 @@ sudo systemctl start konevo-deploy.service
 
 The timer checks at boot and then approximately every five minutes. It queries
 the public GitHub Release API, pulls the matching immutable image, and restarts
-only the app service. GitHub does not connect to the server.
+only the app service. Before marking a release deployed, it waits for Docker's
+app health check and requests `https://<PHX_HOST>/health` through Caddy. GitHub
+does not connect to the server.
 
 ## 7. Operations and rollback
 
 - Back up PostgreSQL, /opt/konevo/uploads, and .env to an encrypted off-server
   destination; test restores.
 - Verify login, email delivery, Gmail, uploads, and logs after each release.
+- `/health` is a public liveness endpoint for Docker, Caddy, and the deployer.
+  It confirms that the Phoenix endpoint responds, but does not replace the
+  functional checks above or external uptime monitoring.
 - Keep the previous image until the new version is verified.
 - Database migrations are forward-only in practice. Do not roll back after a
   migration without reviewing compatibility and restoring a matching backup if

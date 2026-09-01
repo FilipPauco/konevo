@@ -9,7 +9,6 @@
     "@tiptap/extension-text-align": "^3.26.1",
     "@tiptap/extension-underline": "^3.26.1",
     "@tiptap/starter-kit": "^3.26.1",
-    "apexcharts": "^5.15.0",
     "flatpickr": "^4.6.13",
     "flyonui": "^2.4.1",
     "fullcalendar": "^7.0.0",
