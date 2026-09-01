@@ -121,30 +121,33 @@ defmodule KonevoWeb.TestLandingLive do
             >
               {gettext("Product")}
             </button>
-            <a
+            <button
               id="test-landing-nav-how-it-works"
-              href="#how-it-works"
+              type="button"
               data-nav-item
+              data-nav-section="#how-it-works"
               class="px-1 py-2 transition-colors duration-200 hover:text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
             >
               {gettext("How it works")}
-            </a>
-            <a
+            </button>
+            <button
               id="test-landing-nav-installation"
-              href="#installation"
+              type="button"
               data-nav-item
+              data-nav-section="#installation"
               class="px-1 py-2 transition-colors duration-200 hover:text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
             >
               {gettext("Installation")}
-            </a>
-            <a
+            </button>
+            <button
               id="test-landing-nav-contact"
-              href="#contact"
+              type="button"
               data-nav-item
+              data-nav-section="#contact"
               class="px-1 py-2 transition-colors duration-200 hover:text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
             >
               {gettext("Contact")}
-            </a>
+            </button>
           </nav>
 
           <div class="flex items-center gap-2 sm:gap-3">
@@ -207,21 +210,14 @@ defmodule KonevoWeb.TestLandingLive do
           export default {
             mounted() {
               const navItems = [...this.el.querySelectorAll("[data-nav-item]")]
-              const links = navItems.filter(item => item.matches('a[href^="#"]'))
+              const pendingScrollTarget = sessionStorage.getItem("konevo:landing-scroll-target")
+              sessionStorage.removeItem("konevo:landing-scroll-target")
               const sections = navItems
                 .map(item => ({
                   item,
-                  section: document.querySelector(item.dataset.navSection || item.getAttribute("href"))
+                  section: document.querySelector(item.dataset.navSection)
                 }))
                 .filter(({section}) => section)
-
-              const replaceHash = item => {
-                const hash = item.getAttribute("href") || ""
-
-                if (window.location.hash !== hash) {
-                  history.replaceState(null, "", hash || `${window.location.pathname}${window.location.search}`)
-                }
-              }
 
               const setActive = activeLink => {
                 navItems.forEach(item => {
@@ -247,28 +243,10 @@ defmodule KonevoWeb.TestLandingLive do
 
                 if (active) {
                   setActive(active.item)
-                  replaceHash(active.item)
                 }
               }
 
-              this.onNavigationClick = event => {
-                const link = event.target.closest("[data-nav-item]")
-
-                if (!link || !this.el.contains(link)) return
-
-                if (link.hasAttribute("data-nav-static")) {
-                  event.preventDefault()
-                  setActive(link)
-                  replaceHash(link)
-                  return
-                }
-
-                const section = document.querySelector(link.getAttribute("href"))
-                if (!section) return
-
-                event.preventDefault()
-                setActive(link)
-                history.pushState(null, "", link.hash)
+              const scrollToSection = section => {
                 section.scrollIntoView({
                   behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches
                     ? "auto"
@@ -277,19 +255,62 @@ defmodule KonevoWeb.TestLandingLive do
                 })
               }
 
+              this.onNavigationClick = event => {
+                const link = event.target.closest("[data-nav-item]")
+
+                if (!link || !this.el.contains(link)) return
+
+                const section = document.querySelector(link.dataset.navSection)
+                if (!section) return
+
+                event.preventDefault()
+                setActive(link)
+                scrollToSection(section)
+              }
+
               this.onScroll = () => requestAnimationFrame(updateActiveSection)
               this.el.addEventListener("click", this.onNavigationClick)
               window.addEventListener("scroll", this.onScroll, {passive: true})
               const initialItem =
-                links.find(link => link.hash === window.location.hash) ||
+                navItems.find(item => item.dataset.navSection === pendingScrollTarget) ||
                   navItems.find(item => item.hasAttribute("data-nav-static"))
 
               setActive(initialItem)
               updateActiveSection()
+
+              if (pendingScrollTarget) {
+                requestAnimationFrame(() => {
+                  const section = document.querySelector(pendingScrollTarget)
+                  if (section) scrollToSection(section)
+                })
+              }
             },
             destroyed() {
               this.el.removeEventListener("click", this.onNavigationClick)
               window.removeEventListener("scroll", this.onScroll)
+            }
+          }
+        </script>
+
+        <script :type={Phoenix.LiveView.ColocatedHook} name=".ScrollToSection">
+          export default {
+            mounted() {
+              this.onClick = () => {
+                const section = document.querySelector(this.el.dataset.scrollTarget)
+                if (!section) return
+
+                section.scrollIntoView({
+                  behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches
+                    ? "auto"
+                    : "smooth",
+                  block: "start"
+                })
+              }
+
+              this.el.addEventListener("click", this.onClick)
+            },
+            destroyed() {
+              this.el.removeEventListener("click", this.onClick)
             }
           }
         </script>
@@ -325,14 +346,17 @@ defmodule KonevoWeb.TestLandingLive do
                 <.icon name="icon-[tabler--brand-github]" class="size-5" />
                 {gettext("View source")}
               </a>
-              <a
+              <button
                 id="test-landing-hero-how-it-works"
-                href="#how-it-works"
+                type="button"
+                phx-hook=".ScrollToSection"
+                phx-update="ignore"
+                data-scroll-target="#how-it-works"
                 class="hidden btn btn-ghost btn-md w-full gap-2 px-4 shadow-none transition-transform duration-150 hover:shadow-none active:shadow-none sm:flex sm:btn-lg sm:w-auto sm:px-6 sm:hover:-translate-y-0.5 motion-reduce:transform-none"
               >
                 <.icon name="icon-[tabler--player-play]" class="size-4" />
                 {gettext("See how it works")}
-              </a>
+              </button>
             </div>
             <div class="mt-8 hidden flex-wrap gap-x-5 gap-y-3 text-sm text-base-content/60 sm:flex">
               <.assurance
