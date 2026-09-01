@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Security vulnerability
+    url: https://github.com/FilipPauco/konevo/blob/main/SECURITY.md
+    about: Do not report security vulnerabilities in public issues.
+  - name: Contribution guide
+    url: https://github.com/FilipPauco/konevo/blob/main/CONTRIBUTING.md
+    about: Read the contribution workflow before opening a pull request.

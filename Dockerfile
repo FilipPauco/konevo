@@ -21,6 +21,7 @@ COPY priv priv
 COPY lib lib
 RUN mix compile
 COPY assets assets
+COPY THIRD_PARTY_NOTICES.md ./
 RUN mix assets.deploy
 RUN mix release
 
@@ -34,8 +35,12 @@ RUN chown nobody:nobody /app
 USER nobody:nobody
 
 COPY --from=build --chown=nobody:nobody /app/_build/prod/rel/konevo ./
+COPY --from=build --chown=nobody:nobody /app/THIRD_PARTY_NOTICES.md ./
 
 ENV HOME=/app
 ENV PHX_SERVER=true
+
+HEALTHCHECK --interval=10s --timeout=5s --start-period=60s --retries=12 \
+  CMD wget --quiet --spider http://127.0.0.1:4000/health || exit 1
 
 CMD ["sh", "-c", "bin/konevo eval \"Konevo.Release.migrate_and_seed()\" && exec bin/konevo start"]

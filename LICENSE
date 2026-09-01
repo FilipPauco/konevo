@@ -5,6 +5,10 @@ below.
 
 Konevo is source-available software. It is not open-source software.
 
+This notice applies only to Konevo-authored code and assets. Third-party
+components are licensed separately under their own terms, which take priority
+for those components. See THIRD_PARTY_NOTICES.md.
+
 The software is offered under the following unmodified PolyForm licenses,
 depending on the purpose of use:
 

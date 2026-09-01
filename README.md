@@ -104,7 +104,8 @@ Konevo is **source-available, not open source**.
 Redistribution, resale, sublicensing, white-labeling, paid third-party
 installation, and hosted or managed service use require written permission.
 Read [LICENSE](LICENSE), [commercial licensing](COMMERCIAL-LICENSING.md), and
-[trademark terms](TRADEMARKS.md).
+[trademark terms](TRADEMARKS.md). Third-party component notices are in
+[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
 ## Participate or get help
 

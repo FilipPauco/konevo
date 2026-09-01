@@ -90,8 +90,9 @@ Before upgrading, back up the instance and run:
 mix precommit
 ```
 
-After deployment, check that login, the dashboard, Gmail sync, background jobs,
-uploads, and outbound email work as expected.
+After deployment, confirm `https://<PHX_HOST>/health` returns
+`{"status":"ok"}`, then check that login, the dashboard, Gmail sync,
+background jobs, uploads, and outbound email work as expected.
 
 ## Reporting a vulnerability
 

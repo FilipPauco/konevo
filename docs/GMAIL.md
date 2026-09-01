@@ -24,11 +24,11 @@ sync with the application.
 1. Create or select a Google Cloud project.
 2. Enable the **Gmail API** and **Google Calendar API**.
 3. Configure the OAuth consent screen.
-   - App name: `Konevo`
+   - App name: `Konevo` or another accurate name for the operator's instance
    - Support email: an email monitored by the instance operator
    - Home page: `https://<PHX_HOST>/`
-   - Privacy Policy: `https://<PHX_HOST>/privacy`
-   - Terms of Service: `https://<PHX_HOST>/terms`
+   - Privacy Policy: the operator's own public privacy-policy URL
+   - Terms of Service: the operator's own public terms URL
 4. Create an OAuth 2.0 client of type **Web application**.
 5. Add the authorized redirect URI exactly as shown below.
 
@@ -42,6 +42,11 @@ sync with the application.
 
 Do not reuse one OAuth client and secret across unrelated self-hosted instances.
 Each operator should control its own Google Cloud project.
+
+Before configuring the consent screen, publish the operator's own legal pages.
+The support email and legal URLs must be public, controlled by the instance
+operator, use HTTPS, and match the information users see in that service. The
+Konevo public-site Privacy Policy and Terms do not replace them.
 
 ## Connect an account
 

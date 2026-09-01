@@ -51,6 +51,8 @@ defmodule KonevoWeb.ContactsLive.IndexTest do
       |> element("button[phx-click='set_view_mode'][phx-value-mode='card']")
       |> render_click()
 
+      _ = render_async(view)
+
       assert has_element?(view, "#contacts-cards-empty.bg-base-100")
     end
 
