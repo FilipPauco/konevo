@@ -44,29 +44,35 @@ defmodule KonevoWeb.WorkflowDemoLive do
 
           <nav
             id="workflow-demo-navigation"
+            phx-hook=".WorkflowDemoLandingNavigation"
+            phx-update="ignore"
             class="hidden items-center gap-6 text-sm font-semibold text-base-content/65 md:flex"
             aria-label={gettext("Marketing navigation")}
           >
             <a
-              href={~p"/#product"}
+              href={~p"/"}
+              data-landing-section="#product"
               class="px-1 py-2 transition-colors duration-200 hover:text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
             >
               {gettext("Product")}
             </a>
             <a
-              href={~p"/#how-it-works"}
+              href={~p"/"}
+              data-landing-section="#how-it-works"
               class="px-1 py-2 transition-colors duration-200 hover:text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
             >
               {gettext("How it works")}
             </a>
             <a
-              href={~p"/#installation"}
+              href={~p"/"}
+              data-landing-section="#installation"
               class="px-1 py-2 transition-colors duration-200 hover:text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
             >
               {gettext("Installation")}
             </a>
             <a
-              href={~p"/#contact"}
+              href={~p"/"}
+              data-landing-section="#contact"
               class="px-1 py-2 transition-colors duration-200 hover:text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
             >
               {gettext("Contact")}
@@ -123,6 +129,24 @@ defmodule KonevoWeb.WorkflowDemoLive do
               this.sun.classList.toggle("hidden", !dark)
               this.moon.classList.toggle("hidden", dark)
               this.el.setAttribute("aria-label", dark ? this.el.dataset.lightLabel : this.el.dataset.darkLabel)
+            },
+            destroyed() {
+              this.el.removeEventListener("click", this.onClick)
+            }
+          }
+        </script>
+
+        <script :type={Phoenix.LiveView.ColocatedHook} name=".WorkflowDemoLandingNavigation">
+          export default {
+            mounted() {
+              this.onClick = event => {
+                const link = event.target.closest("[data-landing-section]")
+                if (!link || !this.el.contains(link)) return
+
+                sessionStorage.setItem("konevo:landing-scroll-target", link.dataset.landingSection)
+              }
+
+              this.el.addEventListener("click", this.onClick)
             },
             destroyed() {
               this.el.removeEventListener("click", this.onClick)

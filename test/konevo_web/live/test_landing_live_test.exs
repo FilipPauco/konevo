@@ -9,10 +9,27 @@ defmodule KonevoWeb.TestLandingLiveTest do
     assert has_element?(view, "#test-landing")
     assert has_element?(view, "#test-landing-navigation")
     assert has_element?(view, "#test-landing-nav-product[type='button'][aria-current='page']")
-    assert has_element?(view, "#test-landing-nav-how-it-works[href='#how-it-works']")
-    assert has_element?(view, "#test-landing-hero-how-it-works[href='#how-it-works']")
-    assert has_element?(view, "#test-landing-nav-installation[href='#installation']")
-    assert has_element?(view, "#test-landing-nav-contact[href='#contact']")
+
+    assert has_element?(
+             view,
+             "#test-landing-nav-how-it-works[type='button'][data-nav-section='#how-it-works']"
+           )
+
+    assert has_element?(
+             view,
+             "#test-landing-hero-how-it-works[type='button'][data-scroll-target='#how-it-works']"
+           )
+
+    assert has_element?(
+             view,
+             "#test-landing-nav-installation[type='button'][data-nav-section='#installation']"
+           )
+
+    assert has_element?(
+             view,
+             "#test-landing-nav-contact[type='button'][data-nav-section='#contact']"
+           )
+
     assert has_element?(view, "#contact")
 
     refute has_element?(view, "#test-landing-contact-help")
