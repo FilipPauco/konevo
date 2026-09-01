@@ -54,6 +54,12 @@ defmodule KonevoWeb.Router do
   # end
 
   scope "/", KonevoWeb do
+    pipe_through(:api)
+
+    get("/health", HealthController, :show)
+  end
+
+  scope "/", KonevoWeb do
     get("/robots.txt", SeoController, :robots)
     get("/sitemap.xml", SeoController, :sitemap)
   end

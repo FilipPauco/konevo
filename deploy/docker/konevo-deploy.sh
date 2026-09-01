@@ -30,6 +30,18 @@ latest_release_tag() {
     jq --exit-status --raw-output '.tag_name'
 }
 
+verify_public_health() {
+  local host
+
+  host="$(grep --max-count=1 '^PHX_HOST=' .env | cut -d= -f2-)"
+  [[ "$host" =~ ^[A-Za-z0-9.-]+$ ]] || fail "PHX_HOST must be a hostname without a scheme or path"
+
+  curl --fail --silent --show-error --location --retry 12 --retry-connrefused \
+    --connect-timeout 10 --max-time 20 "https://${host}/health" |
+    grep --fixed-strings --quiet '{"status":"ok"}' ||
+    fail "public health check failed: https://${host}/health"
+}
+
 main() {
   require_command docker
   require_command flock
@@ -90,11 +102,13 @@ main() {
   fi
 
   APP_IMAGE="$app_image" "${compose[@]}" pull app
-  APP_IMAGE="$app_image" "${compose[@]}" up -d --no-deps app
+  APP_IMAGE="$app_image" "${compose[@]}" up -d --wait --wait-timeout 120 --no-deps app
 
   if ! APP_IMAGE="$app_image" "${compose[@]}" ps --status running --services | grep --fixed-strings --quiet caddy; then
     APP_IMAGE="$app_image" "${compose[@]}" up -d caddy
   fi
+
+  verify_public_health
 
   printf '%s\n' "$version" > "$STATE_FILE"
   echo "konevo deploy: deployed $app_image"

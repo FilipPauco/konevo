@@ -8,10 +8,27 @@ defmodule KonevoWeb.WorkflowDemoLiveTest do
 
     assert has_element?(view, "#workflow-demo")
     assert has_element?(view, "#workflow-demo-navigation")
-    assert has_element?(view, "#workflow-demo-navigation a[href='/#product']")
-    assert has_element?(view, "#workflow-demo-navigation a[href='/#how-it-works']")
-    assert has_element?(view, "#workflow-demo-navigation a[href='/#installation']")
-    assert has_element?(view, "#workflow-demo-navigation a[href='/#contact']")
+
+    assert has_element?(
+             view,
+             "#workflow-demo-navigation a[href='/'][data-landing-section='#product']"
+           )
+
+    assert has_element?(
+             view,
+             "#workflow-demo-navigation a[href='/'][data-landing-section='#how-it-works']"
+           )
+
+    assert has_element?(
+             view,
+             "#workflow-demo-navigation a[href='/'][data-landing-section='#installation']"
+           )
+
+    assert has_element?(
+             view,
+             "#workflow-demo-navigation a[href='/'][data-landing-section='#contact']"
+           )
+
     assert has_element?(view, "#workflow-demo-theme-toggle[type='button']")
     assert has_element?(view, "#workflow-demo-view-examples[href='/demo'][aria-current='page']")
     assert has_element?(view, "#workflow-demo-configuration")

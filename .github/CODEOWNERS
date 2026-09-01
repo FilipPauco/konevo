@@ -1,4 +1,7 @@
-# Production-sensitive files require Filip's review before merging to main.
+# Filip reviews every pull request before merging to main.
+* @FilipPauco
+
+# Production-sensitive files remain explicitly documented below.
 /.github/workflows/ @FilipPauco
 /Dockerfile @FilipPauco
 /deploy/ @FilipPauco

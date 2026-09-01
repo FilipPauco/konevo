@@ -1,0 +1,30 @@
+name: Feature request
+description: Propose a focused improvement to Konevo.
+title: "feat: "
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem or use case
+      description: Who has this problem and what are they trying to achieve?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed outcome
+      description: Describe the user-facing result rather than only an implementation.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+  - type: checkboxes
+    id: scope
+    attributes:
+      label: Before submitting
+      options:
+        - label: I searched existing issues and removed private customer data.
+          required: true

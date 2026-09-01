@@ -3,6 +3,12 @@ name: Release Image
 on:
   push:
     branches: [main]
+    # Documentation and ownership-metadata-only changes do not need a new
+    # container image, GitHub Release, or production deployment. The PR Gate
+    # still validates them before they merge.
+    paths-ignore:
+      - "**.md"
+      - ".github/CODEOWNERS"
 
 # Releases are ordered: a newer merge must not publish ahead of an older one.
 concurrency:
