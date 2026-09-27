@@ -28,6 +28,11 @@ defmodule KonevoWeb.Seo do
       "operatingSystem" => "Web",
       "url" => page_url("/")
     }
-    |> Jason.encode!()
+  end
+
+  def json_ld(data) when is_map(data) do
+    # Escape HTML parser delimiters before marking JSON safe for a script body.
+    json = data |> Jason.encode!(escape: :html_safe) |> String.replace("<", "\\u003c")
+    {:safe, json}
   end
 end

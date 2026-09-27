@@ -9,6 +9,7 @@ These documents describe the currently implemented self-hosted product.
 | [Automations](AUTOMATIONS.md) | Workflow behavior, approvals, exclusions, and scheduled processing |
 | [Security](SECURITY.md) | Deployment hardening, secrets, uploads, incident response, and known boundaries |
 | [Search visibility](SEO.md) | Search metadata, sharing previews, sitemap, and post-deployment indexing |
+| [Showcase screenshot data](SHOWCASE_DATA.md) | Add and remove reversible fictional data for product screenshots |
 | [Docker deployment](DOCKER.md) | Short overview of the supported Docker workflow |
 | [Release deployment](RELEASE_DEPLOYMENT.md) | Primary production guide: CI, GHCR releases, first launch, and optional server pull updates |
 

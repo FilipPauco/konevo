@@ -1,6 +1,8 @@
 defmodule KonevoWeb.SeoControllerTest do
   use KonevoWeb.ConnCase, async: true
 
+  import Phoenix.LiveViewTest, only: [render_component: 2]
+
   alias KonevoWeb.Seo
 
   test "serves crawl rules with a sitemap location", %{conn: conn} do
@@ -42,5 +44,47 @@ defmodule KonevoWeb.SeoControllerTest do
 
     assert html =~ ~s(name="robots" content="noindex, nofollow")
     refute html =~ ~s(rel="canonical")
+  end
+
+  test "public product pages render parseable JSON-LD", %{conn: conn} do
+    for path <- ["/", "/demo"] do
+      scripts =
+        conn
+        |> get(path)
+        |> html_response(200)
+        |> LazyHTML.from_document()
+        |> LazyHTML.query("script[type='application/ld+json']")
+
+      assert Enum.count(scripts) == 1
+      assert {:ok, data} = scripts |> LazyHTML.text() |> Jason.decode()
+      assert data["@context"] == "https://schema.org"
+      assert data["@type"] == "SoftwareApplication"
+      assert data["name"] == "Konevo"
+      assert data["url"] == Seo.page_url("/")
+    end
+  end
+
+  test "JSON-LD cannot inject markup or consume the rest of the document" do
+    for payload <- [
+          "</script><script id='injected-script'>alert(1)</script>",
+          "</ScRiPt><img id='injected-image' src=x onerror=alert(1)>",
+          "<!--<script>",
+          "Quotes: \" & < > / \\ and separators: \u2028\u2029"
+        ] do
+      data = Map.put(Seo.software_application_json_ld(), "description", payload)
+
+      document =
+        render_component(&KonevoWeb.Layouts.root/1,
+          seo_json_ld: data,
+          inner_content: "JSON-LD boundary check"
+        )
+        |> LazyHTML.from_document()
+
+      scripts = LazyHTML.query(document, "script[type='application/ld+json']")
+      assert Enum.count(scripts) == 1
+      assert {:ok, ^data} = scripts |> LazyHTML.text() |> Jason.decode()
+      assert Enum.empty?(LazyHTML.query(document, "#injected-script, #injected-image"))
+      assert document |> LazyHTML.query("body") |> LazyHTML.text() =~ "JSON-LD boundary check"
+    end
   end
 end

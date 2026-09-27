@@ -87,27 +87,36 @@ defmodule KonevoWeb.TestLandingLive do
         />
 
         <header class="mx-auto flex max-w-7xl items-center justify-between px-5 py-3 sm:px-8 sm:py-5 lg:px-10">
-          <a
-            id="test-landing-brand"
-            href={~p"/"}
-            class="flex items-center gap-2.5"
-            aria-label={gettext("Konevo home page")}
-          >
-            <span class="flex size-10 shrink-0 items-center justify-center overflow-hidden rounded-xl sm:size-12">
-              <img
-                src={~p"/images/logo-navbar-v2.png"}
-                alt=""
-                class="size-10 object-contain sm:size-12"
-              />
+          <div class="flex shrink-0 items-center gap-1">
+            <a
+              id="test-landing-brand"
+              href={~p"/"}
+              class="flex items-center gap-2.5"
+              aria-label={gettext("Konevo home page")}
+            >
+              <span class="flex size-10 shrink-0 items-center justify-center overflow-hidden rounded-xl sm:size-12">
+                <img
+                  src={~p"/images/logo-navbar-v2.png"}
+                  alt=""
+                  class="size-10 object-contain sm:size-12"
+                />
+              </span>
+              <span class="text-base font-bold tracking-tight text-primary sm:text-lg">Konevo</span>
+            </a>
+            <span
+              id="test-landing-beta-badge"
+              aria-describedby="test-landing-beta-note"
+              class="badge badge-soft badge-primary relative -top-2 h-auto shrink-0 border border-primary/20 px-1.5 py-0 text-[9px] font-bold uppercase leading-4 tracking-[0.1em]"
+            >
+              {gettext("Beta")}
             </span>
-            <span class="text-base font-bold tracking-tight text-primary sm:text-lg">Konevo</span>
-          </a>
+          </div>
 
           <nav
             id="test-landing-navigation"
             phx-hook=".LandingNavigation"
             phx-update="ignore"
-            class="hidden items-center gap-6 text-sm font-semibold text-base-content/65 md:flex"
+            class="hidden items-center gap-3 text-xs font-semibold text-base-content/65 md:flex lg:gap-6 lg:text-sm"
             aria-label={gettext("Marketing navigation")}
           >
             <button
@@ -358,6 +367,19 @@ defmodule KonevoWeb.TestLandingLive do
                 {gettext("See how it works")}
               </button>
             </div>
+            <p
+              id="test-landing-beta-note"
+              class="mt-5 flex max-w-sm items-start gap-2 text-xs leading-5 text-base-content/65 sm:mt-4"
+            >
+              <.icon
+                name="icon-[tabler--flask]"
+                class="mt-0.5 size-4 shrink-0 text-primary"
+                aria-hidden="true"
+              />
+              <span class="font-semibold text-base-content/85">
+                {gettext("Currently in beta")}
+              </span>
+            </p>
             <div class="mt-8 hidden flex-wrap gap-x-5 gap-y-3 text-sm text-base-content/60 sm:flex">
               <.assurance
                 icon="icon-[tabler--circle-check]"

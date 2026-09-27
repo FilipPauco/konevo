@@ -38,7 +38,7 @@
     <% end %>
     <%= if seo_json_ld do %>
       <script type="application/ld+json">
-        {raw(seo_json_ld)}
+        <%= Seo.json_ld(seo_json_ld) %>
       </script>
     <% end %>
     <%!-- Roboto --%>
